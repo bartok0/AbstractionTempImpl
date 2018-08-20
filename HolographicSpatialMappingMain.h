@@ -55,6 +55,35 @@ namespace HolographicSpatialMapping
         // Handle surface change events.
         void OnSurfacesChanged(Windows::Perception::Spatial::Surfaces::SpatialSurfaceObserver^ sender, Platform::Object^ args);
 
+		//---
+		enum EdgeOperator { SOD, ESOD };
+
+		//Mesh edge structure
+		struct Edge
+		{
+			double weight = -1.0;
+			//std::pair<DirectX::XMFLOAT3, DirectX::XMFLOAT3> triangleVertices;
+			std::pair<DirectX::XMFLOAT3, DirectX::XMFLOAT3> triangleIndices;
+			//std::pair<DirectX::XMFLOAT3, DirectX::XMFLOAT3> vertexNormals;
+
+			Edge(
+				//std::pair<DirectX::XMFLOAT3, DirectX::XMFLOAT3> vertices,
+				//std::pair<DirectX::XMFLOAT3, DirectX::XMFLOAT3> normals,
+				std::pair<DirectX::XMFLOAT3, DirectX::XMFLOAT3> indices
+			){
+				//triangleVertices = vertices;
+				triangleIndices = indices;
+				//vertexNormals = normals;
+			}
+		};
+
+		//Helper function for populating edge-list needed for edge-weight calculations
+		void PopulateEdgeList(Windows::Storage::Streams::IBuffer^ buffer);
+
+		//Function for calculating edge weight
+		void CalculateEdgeWeight(Edge edge, EdgeOperator mode);
+		//---
+
     private:
         // Asynchronously creates resources for new holographic cameras.
         void OnCameraAdded(
@@ -118,5 +147,33 @@ namespace HolographicSpatialMapping
 
         // Determines the rendering mode.
         bool                                                                m_drawWireframe = true;
+
+		//---
+		//Weight calculation subfunction
+
+		bool SharedEdge(uint32 * TriangleA, uint32 * TriangleB);
+
+		//Flag for setting feature extraction mode, available values are:
+		//
+		//"SOD": Second Order Difference
+		//"ESOD": Extended Second Order Difference
+		EdgeOperator mode = SOD;
+
+		//Spatial surface mesh data used for feature extraction:
+		std::vector<Windows::Storage::Streams::IBuffer^> vertexNormals;
+		std::vector<Windows::Storage::Streams::IBuffer^> vertexIndices;
+		std::vector<Windows::Storage::Streams::IBuffer^> vertexPositions;
+
+		//Triangle edge list
+		std::vector<Edge> edgeList;
+
+		std::vector<std::pair<DirectX::XMFLOAT3,DirectX::XMFLOAT3>> lineVertices;
+		
+		std::mutex meshMutex;
+		
+		bool needsExtraction = true;
+		bool featuresExtracted = false;
+
+		//---
     };
 }

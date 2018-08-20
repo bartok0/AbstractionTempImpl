@@ -138,6 +138,7 @@ void HolographicSpatialMappingMain::UnregisterHolographicEventHandlers()
     }
 }
 
+
 HolographicSpatialMappingMain::~HolographicSpatialMappingMain()
 {
     // Deregister device notification.
@@ -187,6 +188,44 @@ void HolographicSpatialMappingMain::OnSurfacesChanged(
     // they will no longer be hidden.
     m_meshRenderer->HideInactiveMeshes(surfaceCollection);
 }
+
+//---
+//Sub function for PopulateEdgeList
+bool HolographicSpatialMapping::HolographicSpatialMappingMain::SharedEdge(uint32* TriangleA, uint32* TriangleB)
+{
+	int count = 0;
+
+	for (int index1 = 0; index1 < 3; index1++) {
+		uint32 A = TriangleA[index1];
+		for (int index2 = 0; index2 < 3; index2++) {
+			if (A == TriangleB[index2])
+				count++;
+			if (count > 1)
+				return true;
+		}
+	}
+	return false;
+}
+
+void HolographicSpatialMapping::HolographicSpatialMappingMain::PopulateEdgeList(Windows::Storage::Streams::IBuffer^ buffer)
+{
+	//populate edgelist
+}
+
+void HolographicSpatialMapping::HolographicSpatialMappingMain::CalculateEdgeWeight(Edge edge, EdgeOperator mode)
+{
+	switch (mode) {
+	case SOD:
+		//do SOD math
+		break;
+	case ESOD:
+		//do ESOD math
+		break;
+	default:
+		return;
+	}
+}
+//---
 
 // Updates the application state once per frame.
 HolographicFrame^ HolographicSpatialMappingMain::Update()
@@ -293,6 +332,7 @@ HolographicFrame^ HolographicSpatialMappingMain::Update()
                     auto const& id = pair->Key;
                     auto const& surfaceInfo = pair->Value;
                     m_meshRenderer->AddSurface(id, surfaceInfo);
+
                 }
 
                 // We then subcribe to an event to receive up-to-date data.
@@ -313,6 +353,91 @@ HolographicFrame^ HolographicSpatialMappingMain::Update()
         //     SpatialBoundingVolume^ bounds = SpatialBoundingVolume::FromFrustum(coordinateSystem, viewFrustum);
         //     m_surfaceObserver->SetBoundingVolume(bounds);
     }
+
+
+	//---
+	//Pull vertex data
+	if (needsExtraction && m_surfaceObserver) {
+		auto options = ref new SpatialSurfaceMeshOptions();
+		options->IncludeVertexNormals = true;
+
+		auto surfaceMap = m_surfaceObserver->GetObservedSurfaces();
+		for (auto const& pair : surfaceMap)
+		{
+			// Store the ID and metadata for each surface.
+			auto const& id = pair->Key;
+			auto const& surfaceInfo = pair->Value;
+
+			auto createMeshTask = create_task(surfaceInfo->TryComputeLatestMeshAsync(1000, options));
+			createMeshTask.then([this, id](SpatialSurfaceMesh^ mesh)
+			{
+				if (mesh != nullptr)
+				{
+					std::lock_guard<std::mutex> guard(meshMutex);
+					//vertexIndices.push_back(mesh->TriangleIndices->Data);
+					//vertexNormals.push_back(mesh->VertexNormals->Data);
+					//vertexPositions.push_back(mesh->VertexPositions->Data);
+					
+					//DEBUG
+					char msgbuf[100];
+					sprintf_s(msgbuf, 100, "0: Surface ID: %u, Number of vertex positions: %u\n", mesh->SurfaceInfo->Id, mesh->VertexPositions->ElementCount);
+					OutputDebugStringA(msgbuf);
+
+					auto type = mesh->TriangleIndices->Data->GetType()->ToString();
+					OutputDebugStringA("1: Index type: ");
+					OutputDebugStringW(type->Data());
+					OutputDebugStringA("\n");
+
+					//PopulateEdgeList();
+				}
+			}, task_continuation_context::use_current());
+		}
+
+		std::vector<std::vector<unsigned char>> vertexPosData;
+
+		//BLOCK UNTIL ASYNC TASK DONE(?) OR DO INSIDE ASYNC TASK
+		/*
+		for(auto it = vertexPositions.begin(); it != vertexPositions.end(); it++){
+			Windows::Storage::Streams::IBuffer^ buffer = *it;
+			auto bufferReader = Windows::Storage::Streams::DataReader::FromBuffer(buffer);
+			std::vector<unsigned char> data(bufferReader->UnconsumedBufferLength);
+
+			if (!data.empty()) {
+				//DEBUG
+				OutputDebugString(L"Data not empty\n");
+
+				bufferReader->ReadBytes(
+					::Platform::ArrayReference<unsigned char>(
+						&data[0], data.size()));
+				vertexPosData.push_back(data);
+			}
+		}
+		
+		//DEBUG
+		int itval = 1;
+
+		for (auto it = vertexPosData.begin(); it != vertexPosData.end(); it++) {
+			auto itit = it->begin();
+			while (itit != it->end()) {
+				break;
+			}
+
+			//DEBUG
+			char msgbuf[255];
+			sprintf_s(msgbuf, 255, "Iteration: %d\n", itval);
+			OutputDebugStringA(msgbuf);
+			itval++;
+		}
+		*/
+
+		OutputDebugStringW(L"\nSnippet run bby\n\n");
+
+		//Features extracted and ready for rendering.... kind of... asyncs WARNING!
+		needsExtraction = false;
+		featuresExtracted = true;
+	}
+	//---
+
 
 #ifdef DRAW_SAMPLE_CONTENT
     // Check for new input state since the last frame.

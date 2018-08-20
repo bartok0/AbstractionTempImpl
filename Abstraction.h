@@ -4,5 +4,8 @@ class Abstraction
 public:
 	Abstraction();
 	~Abstraction();
+
+private:
+	
 };
 
