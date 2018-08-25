@@ -16,6 +16,10 @@
 #include <windows.graphics.directx.direct3d11.interop.h>
 #include <Collection.h>
 
+//---
+#include "Content\GetDataFromIBuffer.h"
+//---
+
 
 using namespace HolographicSpatialMapping;
 using namespace WindowsHolographicCodeSamples;
@@ -191,6 +195,7 @@ void HolographicSpatialMappingMain::OnSurfacesChanged(
 
 //---
 //Sub function for PopulateEdgeList
+//RETURN EDGE/OUTLYING INDICES?
 bool HolographicSpatialMapping::HolographicSpatialMappingMain::SharedEdge(uint32* TriangleA, uint32* TriangleB)
 {
 	int count = 0;
@@ -207,21 +212,158 @@ bool HolographicSpatialMapping::HolographicSpatialMappingMain::SharedEdge(uint32
 	return false;
 }
 
-void HolographicSpatialMapping::HolographicSpatialMappingMain::PopulateEdgeList(Windows::Storage::Streams::IBuffer^ buffer)
-{
-	//populate edgelist
+void HolographicSpatialMapping::HolographicSpatialMappingMain::PopulateEdgeList(
+	Windows::Perception::Spatial::Surfaces::SpatialSurfaceMesh^ mesh
+){
+	std::vector<unsigned short> indexData;
+	std::vector<DirectX::XMFLOAT3> vertexData;
+	std::vector<DirectX::XMFLOAT3> vertexNormalsData;
+
+	DirectX::PackedVector::XMSHORTN4* rawVertexData = (DirectX::PackedVector::XMSHORTN4*)GetDataFromIBuffer(mesh->VertexPositions->Data);
+	float3 vertexScale = mesh->VertexPositionScale;
+	unsigned int InputVertexCount = mesh->VertexPositions->ElementCount;
+
+	for (unsigned int index = 0; index < InputVertexCount; index++)
+	{
+		// read the currentPos as an XMSHORTN4. 
+		DirectX::PackedVector::XMSHORTN4 currentPos = DirectX::PackedVector::XMSHORTN4(rawVertexData[index]);
+		DirectX::XMFLOAT4 xmfloat;
+
+		// XMVECTOR knows how to convert the XMSHORTN4 to actual floating point coordinates. 
+		DirectX::XMVECTOR xmvec = XMLoadShortN4(&currentPos);
+
+		// STore that into an XMFLOAT4 so we can read the values.
+		DirectX::XMStoreFloat4(&xmfloat, xmvec);
+
+		// Which need to be scaled by the vertex scale.
+		DirectX::XMFLOAT4 scaledVector = DirectX::XMFLOAT4(xmfloat.x*vertexScale.x, xmfloat.y*vertexScale.y, xmfloat.z*vertexScale.z, xmfloat.w);
+
+		vertexData.push_back(DirectX::XMFLOAT3(scaledVector.x, scaledVector.y, scaledVector.z));
+		//float4 nextFloat = float4(scaledVector.x, scaledVector.y, scaledVector.z, scaledVector.w);
+	}
+	vertexMap->insert(make_pair(mesh->SurfaceInfo->Id, vertexData));
+
+	DirectX::PackedVector::XMSHORTN4* rawNormalData = (DirectX::PackedVector::XMSHORTN4*)GetDataFromIBuffer(mesh->VertexNormals->Data);
+	unsigned int InputNormalsCount = mesh->VertexNormals->ElementCount;
+
+	for (unsigned int index = 0; index < InputNormalsCount; index++)
+	{
+		// read the currentPos as an XMSHORTN4. 
+		DirectX::PackedVector::XMSHORTN4 currentPos = DirectX::PackedVector::XMSHORTN4(rawNormalData[index]);
+		DirectX::XMFLOAT4 xmfloat;
+
+		// XMVECTOR knows how to convert the XMSHORTN4 to actual floating point coordinates. 
+		DirectX::XMVECTOR xmvec = XMLoadShortN4(&currentPos);
+
+		// STore that into an XMFLOAT4 so we can read the values.
+		DirectX::XMStoreFloat4(&xmfloat, xmvec);
+
+		// Which need to be scaled by the vertex scale.
+		DirectX::XMFLOAT4 scaledVector = DirectX::XMFLOAT4(xmfloat.x, xmfloat.y, xmfloat.z, xmfloat.w);
+
+		vertexNormalsData.push_back(DirectX::XMFLOAT3(scaledVector.x, scaledVector.y, scaledVector.z));
+	}
+	normalsMap->insert(make_pair(mesh->SurfaceInfo->Id, vertexNormalsData));
+
+	DirectX::XMUINT4* rawIndexData = (DirectX::XMUINT4*)GetDataFromIBuffer(mesh->TriangleIndices->Data);
+	unsigned int InputIndexCount = mesh->TriangleIndices->ElementCount / 4;
+
+	for (unsigned int index = 0; index < InputIndexCount; index++)
+	{
+		// read the currentPos as an XMSHORTN4.
+		DirectX::XMUINT4 currentPos = DirectX::XMUINT4(rawIndexData[index]);
+		DirectX::XMUINT4 xmfloat;
+
+		// XMVECTOR knows how to convert the XMSHORTN4 to actual floating point coordinates. 
+		DirectX::XMVECTOR xmvec = DirectX::XMLoadUInt4(&currentPos);
+
+		// STore that into an XMFLOAT4 so we can read the values.
+		DirectX::XMStoreUInt4(&xmfloat, xmvec);
+
+		// Which need to be scaled by the vertex scale.
+		//DirectX::PackedVector::XMUSHORT4 scaledVector = DirectX::PackedVector::XMUSHORT4(xmfloat.x, xmfloat.y, xmfloat.z, xmfloat.w);
+		indexData.push_back(xmfloat.x);
+		indexData.push_back(xmfloat.y);
+		indexData.push_back(xmfloat.z);
+		indexData.push_back(xmfloat.w);
+	}
+
+	indexMap->insert(make_pair(mesh->SurfaceInfo->Id, indexData));
+
+	char msgbuffer[512];
+	unsigned int val = (unsigned int)indexData.size();
+	sprintf_s(msgbuffer, 512, "\nNumber of indices: %u \nNumber of vertices: %u\nNumber of normals: %u\n", val, InputVertexCount, InputNormalsCount);
+	OutputDebugStringA(msgbuffer);
+
+	//DEBUG PRINTS
+	
+	auto it = indexData.begin();
+	auto one = *it;
+	auto two = *(it+1);
+	auto three = *(it+2);
+	auto four = *(it + 3);
+	auto five = *(it + 4);
+	auto check = *(it + 5);
+	
+	char msgbuf4[255];
+	sprintf_s(msgbuf4, 255, "\n0: %u \n 1: %u \n 2: %u \n 3: %u \n 4: %u \n check: %u\n", one, two, three, four, five,check);
+	OutputDebugStringA(msgbuf4);
+	
+	
+	auto itt = vertexData.begin();
+	auto onef = itt->x;
+	auto twof = itt->y;
+	auto threef = itt->z;
+	auto fourf = (itt + 1)->x;
+	auto fivef = (itt + 1)->y;
+	auto checkf = (itt + 1)->z;
+
+	char msgbuf5[255];
+	sprintf_s(msgbuf5, 255, "\n0: %f \n 1: %f \n 2: %f \n 3: %f \n 4: %f \n check: %f\n\n", onef, twof, threef,fourf,fivef, checkf);
+	OutputDebugStringA(msgbuf5);
+
+	//POPULATE EDGELIST FINALLY!!!!!
+}
+
+DirectX::XMVECTOR normal(DirectX::XMVECTOR triangleP1, DirectX::XMVECTOR triangleP2, DirectX::XMVECTOR triangleP3) {
+	
+	DirectX::XMFLOAT3 normal;
+	DirectX::XMVECTOR U = DirectX::XMVectorSubtract(triangleP2, triangleP1);
+	DirectX::XMVECTOR V = DirectX::XMVectorSubtract(triangleP3, triangleP1);
+
+	normal.x = (DirectX::XMVectorGetY(U)*DirectX::XMVectorGetZ(V)) - (DirectX::XMVectorGetZ(U)*DirectX::XMVectorGetY(V));
+	normal.y = (DirectX::XMVectorGetZ(U)*DirectX::XMVectorGetX(V)) - (DirectX::XMVectorGetX(U)*DirectX::XMVectorGetZ(V));
+	normal.z = (DirectX::XMVectorGetX(U)*DirectX::XMVectorGetY(V)) - (DirectX::XMVectorGetY(U)*DirectX::XMVectorGetX(V));
+
+	DirectX::XMVECTOR out = { normal.x, normal.y, normal.z };
+	return out;
 }
 
 void HolographicSpatialMapping::HolographicSpatialMappingMain::CalculateEdgeWeight(Edge edge, EdgeOperator mode)
 {
+	auto it1 = edge.triangleVertices.begin();
+	auto it2 = edge.vertexNormals.begin();
+
 	switch (mode) {
 	case SOD:
-		//do SOD math
+
+		//DirectX::XMVECTORF32 triangleAvertices = { it1->x, (it1)->y, (it1)->z };
+		//DirectX::XMVECTORF32 triangleBvertices = { (it1 + 1)->x, (it1 + 1)->y, (it1 + 1)->z };
+		//ASSUMPTION OF VERTEX ORDER: {<triangleAvertices>,<triangleBvertices>}
+
+		DirectX::XMVECTOR triangleANormal = normal(DirectX::XMVECTOR() = {it1->x,it1->y,it1->z}, DirectX::XMVECTOR() = { (it1 + 1)->x,(it1 + 1)->y ,(it1 + 1)->z }, DirectX::XMVECTOR() = { (it1 + 2)->x ,(it1 + 2)->y ,(it1 + 2)->z });
+		DirectX::XMVECTOR triangleBNormal = normal(DirectX::XMVECTOR() = { (it1+3)->x,(it1 + 3)->y,(it1 + 3)->z }, DirectX::XMVECTOR() = { (it1 + 4)->x,(it1 + 4)->y ,(it1 + 4)->z }, DirectX::XMVECTOR() = { (it1 + 5)->x ,(it1 + 5)->y ,(it1 + 5)->z });
+
+		edge.weight = DirectX::XMScalarACos(DirectX::XMVectorGetIntX(DirectX::XMVector3Dot(DirectX::XMVector3Normalize(triangleANormal), DirectX::XMVector3Normalize(triangleANormal))));
 		break;
 	case ESOD:
-		//do ESOD math
+
+		//DO ESOD
+		edge.weight = 0.0f;
+
 		break;
 	default:
+		OutputDebugStringW(L"No opearator-mode selected for edge-weight calculations!, available are: SOD, ESOD\n");
 		return;
 	}
 }
@@ -356,12 +498,45 @@ HolographicFrame^ HolographicSpatialMappingMain::Update()
 
 
 	//---
+	//Initialize external data buffers if needed
+	if(vertexMap == nullptr)
+	vertexMap = (std::map<GUID,std::vector<DirectX::XMFLOAT3>>*)new std::map<GUID, std::vector<DirectX::XMFLOAT3>>();
+	if (normalsMap == nullptr)
+	normalsMap = (std::map<GUID, std::vector<DirectX::XMFLOAT3>>*)new std::map<GUID, std::vector<DirectX::XMFLOAT3>>();
+	if (indexMap == nullptr)
+	indexMap = (std::map<GUID,std::vector<unsigned short>>*)new std::map<GUID, std::vector<unsigned short>>();
+
 	//Pull vertex data
-	if (needsExtraction && m_surfaceObserver) {
+	if (needSpatialMapping && m_surfaceObserver) {
 		auto options = ref new SpatialSurfaceMeshOptions();
 		options->IncludeVertexNormals = true;
+		options->VertexPositionFormat = Windows::Graphics::DirectX::DirectXPixelFormat::R32G32B32A32Float;
+		options->VertexNormalFormat = Windows::Graphics::DirectX::DirectXPixelFormat::R32G32B32A32Float;
+		options->TriangleIndexFormat = Windows::Graphics::DirectX::DirectXPixelFormat::R32UInt; //WIERD
+
+		/*
+		auto str = options->SupportedTriangleIndexFormats->ToString()->Data();
+		OutputDebugStringW(L"Supported Index Formats: \n");
+		OutputDebugStringW(str);
+		OutputDebugStringW(L"\n");
+		str = options->SupportedVertexPositionFormats->ToString()->Data();
+		OutputDebugStringW(L"Supported Vertex Formats: \n");
+		OutputDebugStringW(str);
+		OutputDebugStringW(L"\n");
+		str = options->SupportedVertexNormalFormats->ToString()->Data();
+		OutputDebugStringW(L"Supported Normal Formats: \n");
+		OutputDebugStringW(str); 
+		OutputDebugStringW(L"\n");
+		*/
+		//options->VertexPositionFormat = DirectXPixelFormat::R32Float;
+		//options->VertexNormalFormat = DirectXPixelFormat::R32Float;
+		//options->TriangleIndexFormat = DirectXPixelFormat::R32UInt;
 
 		auto surfaceMap = m_surfaceObserver->GetObservedSurfaces();
+
+		//num surfaces? for blocking?
+		numSurfaces = surfaceMap->Size;
+
 		for (auto const& pair : surfaceMap)
 		{
 			// Store the ID and metadata for each surface.
@@ -373,69 +548,28 @@ HolographicFrame^ HolographicSpatialMappingMain::Update()
 			{
 				if (mesh != nullptr)
 				{
-					std::lock_guard<std::mutex> guard(meshMutex);
-					//vertexIndices.push_back(mesh->TriangleIndices->Data);
-					//vertexNormals.push_back(mesh->VertexNormals->Data);
-					//vertexPositions.push_back(mesh->VertexPositions->Data);
-					
-					//DEBUG
 					char msgbuf[100];
-					sprintf_s(msgbuf, 100, "0: Surface ID: %u, Number of vertex positions: %u\n", mesh->SurfaceInfo->Id, mesh->VertexPositions->ElementCount);
+					sprintf_s(msgbuf, 100, "Surface ID: %u:\n", mesh->SurfaceInfo->Id);
 					OutputDebugStringA(msgbuf);
 
-					auto type = mesh->TriangleIndices->Data->GetType()->ToString();
-					OutputDebugStringA("1: Index type: ");
-					OutputDebugStringW(type->Data());
-					OutputDebugStringA("\n");
-
-					//PopulateEdgeList();
+					std::lock_guard<std::mutex> guard(meshMutex);
+					PopulateEdgeList(mesh);
+					surfaceCount++;
 				}
 			}, task_continuation_context::use_current());
+
+			
 		}
 
-		std::vector<std::vector<unsigned char>> vertexPosData;
-
-		//BLOCK UNTIL ASYNC TASK DONE(?) OR DO INSIDE ASYNC TASK
-		/*
-		for(auto it = vertexPositions.begin(); it != vertexPositions.end(); it++){
-			Windows::Storage::Streams::IBuffer^ buffer = *it;
-			auto bufferReader = Windows::Storage::Streams::DataReader::FromBuffer(buffer);
-			std::vector<unsigned char> data(bufferReader->UnconsumedBufferLength);
-
-			if (!data.empty()) {
-				//DEBUG
-				OutputDebugString(L"Data not empty\n");
-
-				bufferReader->ReadBytes(
-					::Platform::ArrayReference<unsigned char>(
-						&data[0], data.size()));
-				vertexPosData.push_back(data);
-			}
-		}
-		
-		//DEBUG
-		int itval = 1;
-
-		for (auto it = vertexPosData.begin(); it != vertexPosData.end(); it++) {
-			auto itit = it->begin();
-			while (itit != it->end()) {
-				break;
-			}
-
-			//DEBUG
-			char msgbuf[255];
-			sprintf_s(msgbuf, 255, "Iteration: %d\n", itval);
-			OutputDebugStringA(msgbuf);
-			itval++;
-		}
-		*/
-
-		OutputDebugStringW(L"\nSnippet run bby\n\n");
-
-		//Features extracted and ready for rendering.... kind of... asyncs WARNING!
-		needsExtraction = false;
-		featuresExtracted = true;
+		needSpatialMapping = false;
 	}
+
+	//check meshes processed counter if the program can continue...
+	if (needsExtraction && !(surfaceCount < numSurfaces)) {
+		//All surface meshes in snapshot processed, edge weight calculations can be started
+		//IMPLEMENT AND CALL WEIGHT CALCULATION
+	}
+
 	//---
 
 
@@ -541,6 +675,12 @@ void HolographicSpatialMappingMain::LoadAppState()
 // need to be released before this method returns.
 void HolographicSpatialMappingMain::OnDeviceLost()
 {
+	//---
+	delete &vertexMap;
+	delete &normalsMap;
+	delete &indexMap;
+	vertexMap, normalsMap, indexMap = nullptr;
+	//---
 #ifdef DRAW_SAMPLE_CONTENT
     m_meshRenderer->ReleaseDeviceDependentResources();
 #endif

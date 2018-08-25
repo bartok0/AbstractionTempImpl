@@ -61,24 +61,49 @@ namespace HolographicSpatialMapping
 		//Mesh edge structure
 		struct Edge
 		{
+			//Edge weight
 			double weight = -1.0;
-			//std::pair<DirectX::XMFLOAT3, DirectX::XMFLOAT3> triangleVertices;
-			std::pair<DirectX::XMFLOAT3, DirectX::XMFLOAT3> triangleIndices;
-			//std::pair<DirectX::XMFLOAT3, DirectX::XMFLOAT3> vertexNormals;
+
+			//Edge indices
+			std::vector<unsigned short> triangleIndices;
+			std::pair<unsigned short, unsigned short> edgeIndices;
+			std::pair<DirectX::XMFLOAT3, DirectX::XMFLOAT3> edgeVertices;
+			std::pair<DirectX::XMFLOAT3, DirectX::XMFLOAT3> outlyingVertices;
+			std::pair<unsigned short, unsigned short> outlyingIndices;
+
+			//Vertex position and normal data
+			std::vector<DirectX::XMFLOAT3> vertexNormals;
+			std::vector<DirectX::XMFLOAT3> triangleVertices;
 
 			Edge(
-				//std::pair<DirectX::XMFLOAT3, DirectX::XMFLOAT3> vertices,
-				//std::pair<DirectX::XMFLOAT3, DirectX::XMFLOAT3> normals,
-				std::pair<DirectX::XMFLOAT3, DirectX::XMFLOAT3> indices
+				std::vector<unsigned short> TriangleIndices,
+				std::vector<DirectX::XMFLOAT3> VertexNormals,
+				std::vector<DirectX::XMFLOAT3> TriangleVertices
 			){
-				//triangleVertices = vertices;
-				triangleIndices = indices;
-				//vertexNormals = normals;
+				triangleIndices = TriangleIndices;
+				vertexNormals = VertexNormals;
+				triangleVertices = TriangleVertices;
 			}
 		};
 
+		inline void assignEdgeIndices(Edge* edge, std::pair<unsigned int, unsigned int> indices){
+			edge->edgeIndices = indices;
+		}
+
+		inline void assignOutlyingIndices(Edge* edge, std::pair<unsigned int, unsigned int> indices) {
+			edge->outlyingIndices = indices;
+		};
+
 		//Helper function for populating edge-list needed for edge-weight calculations
-		void PopulateEdgeList(Windows::Storage::Streams::IBuffer^ buffer);
+		void PopulateEdgeList(
+			Windows::Perception::Spatial::Surfaces::SpatialSurfaceMesh^ mesh
+			//Windows::Storage::Streams::IBuffer^ IndexBuffer, 
+			//Windows::Storage::Streams::IBuffer^ VertexBuffer, 
+			//Windows::Storage::Streams::IBuffer^ VertexNormalsBuffer,
+			//unsigned int IndexCount,
+			//unsigned int VertexCount,
+			//unsigned int NormalsCount
+		);
 
 		//Function for calculating edge weight
 		void CalculateEdgeWeight(Edge edge, EdgeOperator mode);
@@ -160,18 +185,25 @@ namespace HolographicSpatialMapping
 		EdgeOperator mode = SOD;
 
 		//Spatial surface mesh data used for feature extraction:
-		std::vector<Windows::Storage::Streams::IBuffer^> vertexNormals;
-		std::vector<Windows::Storage::Streams::IBuffer^> vertexIndices;
-		std::vector<Windows::Storage::Streams::IBuffer^> vertexPositions;
+		//std::vector<Windows::Storage::Streams::IBuffer^> vertexNormals;
+		//std::vector<Windows::Storage::Streams::IBuffer^> vertexIndices;
+		//std::vector<Windows::Storage::Streams::IBuffer^> vertexPositions;
 
 		//Triangle edge list
-		std::vector<Edge> edgeList;
+		std::vector<Edge>* edgeList = nullptr;
 
-		std::vector<std::pair<DirectX::XMFLOAT3,DirectX::XMFLOAT3>> lineVertices;
+		std::map<GUID,std::vector<DirectX::XMFLOAT3>>* vertexMap = nullptr;
+		std::map<GUID,std::vector<DirectX::XMFLOAT3>>* normalsMap = nullptr;
+		std::map<GUID, std::vector<unsigned short>>* indexMap = nullptr;
+
+		//std::vector<std::pair<DirectX::XMFLOAT3,DirectX::XMFLOAT3>> lineVertices;
 		
 		std::mutex meshMutex;
 		
+		uint32 numSurfaces;
+		uint32 surfaceCount;
 		bool needsExtraction = true;
+		bool needSpatialMapping = true;
 		bool featuresExtracted = false;
 
 		//---

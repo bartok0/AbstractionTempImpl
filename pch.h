@@ -26,3 +26,7 @@
 #include <memory>
 #include <map>
 #include <mutex>
+
+//---
+#include <DirectXPackedVector.h>
+//---
