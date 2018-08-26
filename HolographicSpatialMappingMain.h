@@ -62,7 +62,7 @@ namespace HolographicSpatialMapping
 		struct Edge
 		{
 			//Edge weight
-			double weight = -1.0;
+			float weight = -1.0;
 
 			//Edge indices
 			std::vector<unsigned short> triangleIndices;
@@ -72,18 +72,25 @@ namespace HolographicSpatialMapping
 			std::pair<unsigned short, unsigned short> outlyingIndices;
 
 			//Vertex position and normal data
-			std::vector<DirectX::XMFLOAT3> vertexNormals;
+			std::pair<DirectX::XMFLOAT3, DirectX::XMFLOAT3> outlyingVertexNormals;
 			std::vector<DirectX::XMFLOAT3> triangleVertices;
 
 			Edge(
 				std::vector<unsigned short> TriangleIndices,
-				std::vector<DirectX::XMFLOAT3> VertexNormals,
-				std::vector<DirectX::XMFLOAT3> TriangleVertices
+				std::pair<DirectX::XMFLOAT3, DirectX::XMFLOAT3> EdgeVertices,
+				std::pair<DirectX::XMFLOAT3,DirectX::XMFLOAT3> neighbourVertexNormals
 			){
 				triangleIndices = TriangleIndices;
-				vertexNormals = VertexNormals;
-				triangleVertices = TriangleVertices;
+				outlyingVertexNormals = neighbourVertexNormals;
+				edgeVertices = EdgeVertices;
 			}
+		};
+
+		//Substruct used in the edge list population stage
+		struct EdgeDetails{
+			std::pair<DirectX::XMFLOAT3, DirectX::XMFLOAT3> edgeVertices;
+			std::pair<DirectX::XMFLOAT3, DirectX::XMFLOAT3> outlyingVertices;
+			bool sharedEdge;
 		};
 
 		inline void assignEdgeIndices(Edge* edge, std::pair<unsigned int, unsigned int> indices){
@@ -174,15 +181,13 @@ namespace HolographicSpatialMapping
         bool                                                                m_drawWireframe = true;
 
 		//---
-		//Weight calculation subfunction
-
-		bool SharedEdge(uint32 * TriangleA, uint32 * TriangleB);
-
 		//Flag for setting feature extraction mode, available values are:
 		//
 		//"SOD": Second Order Difference
 		//"ESOD": Extended Second Order Difference
 		EdgeOperator mode = SOD;
+
+		double meshDensity = 1000.0;
 
 		//Spatial surface mesh data used for feature extraction:
 		//std::vector<Windows::Storage::Streams::IBuffer^> vertexNormals;
@@ -199,9 +204,7 @@ namespace HolographicSpatialMapping
 		//std::vector<std::pair<DirectX::XMFLOAT3,DirectX::XMFLOAT3>> lineVertices;
 		
 		std::mutex meshMutex;
-		
-		uint32 numSurfaces;
-		uint32 surfaceCount;
+
 		bool needsExtraction = true;
 		bool needSpatialMapping = true;
 		bool featuresExtracted = false;
