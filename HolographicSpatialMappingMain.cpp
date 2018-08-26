@@ -280,7 +280,7 @@ void HolographicSpatialMapping::HolographicSpatialMappingMain::PopulateEdgeList(
 	OutputDebugStringA(msgbuffer);
 
 	//DEBUG PRINTS
-
+	/*
 	auto it = indexData.begin();
 	auto one = *it;
 	auto two = *(it + 1);
@@ -305,57 +305,74 @@ void HolographicSpatialMapping::HolographicSpatialMappingMain::PopulateEdgeList(
 	char msgbuf5[255];
 	sprintf_s(msgbuf5, 255, "\n0: %f \n 1: %f \n 2: %f \n 3: %f \n 4: %f \n check: %f\n\n", onef, twof, threef, fourf, fivef, checkf);
 	OutputDebugStringA(msgbuf5);
-
+	*/
 	//Populate edgelist
 	GUID meshID = mesh->SurfaceInfo->Id;
 	int edgeCounter = 0;
 
-	//NO GUARANTEE FOR mod 3 = 0 indices/vertices/normals!!!
+	//WAY TOO SLOW... parallellize?
+
 	for (auto it1 = indexData.begin(); it1 != indexData.end(); it1 += 3) {
+
+		//There is no guarantee that 'index count' % 3 = 0.
+		if ((it1 + 1) == indexData.end())
+			break;
+		if ((it1 + 2) == indexData.end())
+			break;
+
 		unsigned short TriangleAIndices[3] = { *it1,*(it1 + 1),*(it1 + 2) };
-		for (auto it2 = indexData.begin(); it2 != indexData.end(); it2 += 3) {
 
-			//Dont check for shared edge of same triangle
-			if (it1 != it2) {
-				unsigned short TriangleBIndices[3] = { *it2,*(it2 + 1),*(it2 + 2) };
-				std::vector<unsigned short> edgeIndices = {};
-				std::vector<unsigned short> neighbourIndices = {};
+		for (auto it2 = it1 + 3; it2 != indexData.end(); it2 += 3) {
+			//There is no guarantee that 'index count' % 3 = 0.
+			if ((it2 + 1) == indexData.end())
+				break;
+			if ((it2 + 2) == indexData.end())
+				break;
 
-				for (int i = 0; i < 3; i++) {
-					unsigned short A = TriangleAIndices[i];
-					for (int j = 0; j < 3; j++) {
-						if (A == TriangleBIndices[j])
-							edgeIndices.push_back(A);
-						if (edgeIndices.size() > 1) {
-							//The triangles have a shared edge, Construct the new edge-data and add it to the edgelist
-							unsigned short edgeIndexA = edgeIndices[0];
-							unsigned short edgeIndexB = edgeIndices[1];
-							std::vector<unsigned short> triangleIndices;
-							std::merge(TriangleAIndices, TriangleAIndices + 3, TriangleBIndices, TriangleBIndices + 3, triangleIndices.begin());
+			unsigned short TriangleBIndices[3] = { *it2,*(it2 + 1),*(it2 + 2) };
 
-							for (auto edgeit = triangleIndices.begin(); edgeit != triangleIndices.end(); edgeit++) {
-								if (*edgeit != edgeIndexA || *edgeit != edgeIndexB)
-									neighbourIndices.push_back(*edgeit);
-							}
+			std::vector<unsigned short> edgeIndices = {};
+			std::vector<unsigned short> neighbourIndices = {};
 
-							auto vertexPair = std::make_pair(vertexData[edgeIndices[0]], vertexData[edgeIndices[1]]);
-							auto normalsPair = std::make_pair(vertexNormalsData[neighbourIndices[0]], vertexNormalsData[neighbourIndices[1]]);
+			for (int i = 0; i < 3; i++) {
+				unsigned short A = TriangleAIndices[i];
+				for (int j = 0; j < 3; j++) {
+					if (A == TriangleBIndices[j])
+						edgeIndices.push_back(A);
 
-							Edge newEdge = Edge(triangleIndices, vertexPair, normalsPair);
-							edgeList->push_back(newEdge);
-							edgeCounter++;
+					if (edgeIndices.size() > 1) {
+						//The triangles have a shared edge, Construct the new edge-data and add it to the edgelist
+						unsigned short edgeIndexA = edgeIndices[0];
+						unsigned short edgeIndexB = edgeIndices[1];
+						std::vector<unsigned short> triangleIndices;
+
+						triangleIndices.assign(TriangleAIndices[0], TriangleAIndices[2]);
+						for (int q = 0; q < 3; q++)
+							triangleIndices.push_back(TriangleBIndices[q]);
+						//std::merge(TriangleAIndices, TriangleAIndices + 3, TriangleBIndices, TriangleBIndices + 3, triangleIndices.begin());
+
+						for (auto edgeit = triangleIndices.begin(); edgeit != triangleIndices.end(); edgeit++) {
+							if (*edgeit != edgeIndexA || *edgeit != edgeIndexB)
+								neighbourIndices.push_back(*edgeit);
 						}
+
+						auto vertexPair = std::make_pair(vertexData[edgeIndices[0]], vertexData[edgeIndices[1]]);
+						auto normalsPair = std::make_pair(vertexNormalsData[neighbourIndices[0]], vertexNormalsData[neighbourIndices[1]]);
+
+						Edge newEdge = Edge(triangleIndices, vertexPair, normalsPair);
+						edgeList->push_back(newEdge);
+						edgeCounter++;
 						break;
 					}
-					if (edgeIndices.size() > 1)
-						break;
 				}
-
+				if (edgeIndices.size() > 1)
+					break;
 			}
 		}
 	}
 	char buffr[255];
-	sprintf_s(buffr, 255, "\nFound %d edges in surface\n",edgeCounter);
+	sprintf_s(buffr, 255, "\nFound %d edges,\nFound %d edges total\n\n", edgeCounter, edgeList->size());
+	OutputDebugStringA(buffr);
 	return;
 }
 
@@ -539,6 +556,9 @@ HolographicFrame^ HolographicSpatialMappingMain::Update()
 	if (indexMap == nullptr)
 		indexMap = (std::map<GUID, std::vector<unsigned short>>*)new std::map<GUID, std::vector<unsigned short>>();
 
+	if (edgeList == nullptr)
+		edgeList = new std::vector<Edge>;
+
 	//Pull vertex data
 	if (needSpatialMapping && m_surfaceObserver) {
 		auto options = ref new SpatialSurfaceMeshOptions();
@@ -556,7 +576,7 @@ HolographicFrame^ HolographicSpatialMappingMain::Update()
 			auto const& surfaceInfo = pair->Value;
 
 			auto createMeshTask = create_task(surfaceInfo->TryComputeLatestMeshAsync(meshDensity, options));
-			
+
 			createMeshTask.then([this, id](SpatialSurfaceMesh^ mesh)
 			{
 				if (mesh != nullptr)
