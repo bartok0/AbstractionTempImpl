@@ -309,6 +309,7 @@ void HolographicSpatialMapping::HolographicSpatialMappingMain::PopulateEdgeList(
 	//Populate edgelist
 	GUID meshID = mesh->SurfaceInfo->Id;
 	int edgeCounter = 0;
+	std::vector<Edge> newEdgesList;
 
 	//WAY TOO SLOW... parallellize?
 
@@ -360,7 +361,7 @@ void HolographicSpatialMapping::HolographicSpatialMappingMain::PopulateEdgeList(
 						auto normalsPair = std::make_pair(vertexNormalsData[neighbourIndices[0]], vertexNormalsData[neighbourIndices[1]]);
 
 						Edge newEdge = Edge(triangleIndices, vertexPair, normalsPair);
-						edgeList->push_back(newEdge);
+						newEdgesList.push_back(newEdge);
 						edgeCounter++;
 						break;
 					}
@@ -370,6 +371,11 @@ void HolographicSpatialMapping::HolographicSpatialMappingMain::PopulateEdgeList(
 			}
 		}
 	}
+
+	meshMutex.lock();
+	edgeList->insert(edgeList->end(),newEdgesList.begin(),newEdgesList.end());
+	meshMutex.unlock();
+
 	char buffr[255];
 	sprintf_s(buffr, 255, "\nFound %d edges,\nFound %d edges total\n\n", edgeCounter, edgeList->size());
 	OutputDebugStringA(buffr);
@@ -585,17 +591,20 @@ HolographicFrame^ HolographicSpatialMappingMain::Update()
 					sprintf_s(msgbuf, 100, "Surface ID: %u:\n", mesh->SurfaceInfo->Id);
 					OutputDebugStringA(msgbuf);
 
-					std::lock_guard<std::mutex> guard(meshMutex);
-					PopulateEdgeList(mesh);
+					auto operation = create_async([this,mesh]
+					{
+						PopulateEdgeList(mesh);
+					});
+					auto populateTask = create_task(operation);
 				}
 			}, task_continuation_context::use_current());
-
 		}
+
+		//if all tasks finished do popedgelist parallell?
 
 		needSpatialMapping = false;
 	}
 	//---
-
 
 #ifdef DRAW_SAMPLE_CONTENT
 	// Check for new input state since the last frame.
