@@ -25,6 +25,10 @@
 #include "Content\RealtimeSurfaceMeshRenderer.h"
 #endif
 
+//---
+#include "EdgeRenderer.h"
+//---
+
 // Updates, renders, and presents holographic content using Direct3D.
 namespace HolographicSpatialMapping
 {
@@ -86,13 +90,6 @@ namespace HolographicSpatialMapping
 			}
 		};
 
-		//Substruct used in the edge list population stage
-		struct EdgeDetails{
-			std::pair<DirectX::XMFLOAT3, DirectX::XMFLOAT3> edgeVertices;
-			std::pair<DirectX::XMFLOAT3, DirectX::XMFLOAT3> outlyingVertices;
-			bool sharedEdge;
-		};
-
 		inline void assignEdgeIndices(Edge* edge, std::pair<unsigned int, unsigned int> indices){
 			edge->edgeIndices = indices;
 		}
@@ -102,15 +99,7 @@ namespace HolographicSpatialMapping
 		};
 
 		//Helper function for populating edge-list needed for edge-weight calculations
-		void PopulateEdgeList(
-			Windows::Perception::Spatial::Surfaces::SpatialSurfaceMesh^ mesh
-			//Windows::Storage::Streams::IBuffer^ IndexBuffer, 
-			//Windows::Storage::Streams::IBuffer^ VertexBuffer, 
-			//Windows::Storage::Streams::IBuffer^ VertexNormalsBuffer,
-			//unsigned int IndexCount,
-			//unsigned int VertexCount,
-			//unsigned int NormalsCount
-		);
+		void PopulateEdgeList(Windows::Perception::Spatial::Surfaces::SpatialSurfaceMesh^ mesh);
 
 		//Function for calculating edge weight
 		void CalculateEdgeWeight(Edge edge, EdgeOperator mode);
@@ -196,6 +185,8 @@ namespace HolographicSpatialMapping
 
 		//Triangle edge list
 		std::vector<Edge>* edgeList = nullptr;
+		//Edges to be drawn in the 'edge renderer'
+		std::vector<DirectX::XMFLOAT3> edgeVertices;
 
 		std::map<GUID,std::vector<DirectX::XMFLOAT3>>* vertexMap = nullptr;
 		std::map<GUID,std::vector<DirectX::XMFLOAT3>>* normalsMap = nullptr;
@@ -204,6 +195,8 @@ namespace HolographicSpatialMapping
 		//std::vector<std::pair<DirectX::XMFLOAT3,DirectX::XMFLOAT3>> lineVertices;
 		
 		std::mutex meshMutex;
+
+		std::unique_ptr<EdgeRenderer> edgeRenderer;
 
 		bool needsExtraction = true;
 		bool needSpatialMapping = true;

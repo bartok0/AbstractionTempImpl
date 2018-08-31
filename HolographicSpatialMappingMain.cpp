@@ -59,6 +59,11 @@ void HolographicSpatialMappingMain::SetHolographicSpace(
 	m_spatialInputHandler = std::make_unique<SpatialInputHandler>();
 #endif
 
+	//---
+	//Initialize the edge renderer
+	edgeRenderer = std::make_unique<EdgeRenderer>();
+	//---
+
 	// Use the default SpatialLocator to track the motion of the device.
 	m_locator = SpatialLocator::GetDefault();
 
@@ -623,6 +628,12 @@ HolographicFrame^ HolographicSpatialMappingMain::Update()
 #endif
 	});
 
+
+	//---
+	//Update MVP transform
+	edgeRenderer->Update(currentCoordinateSystem);
+	//---
+
 	// This sample uses default image stabilization settings, and does not set the focus point.
 
 	// The holographic frame will be used to get up-to-date view and projection matrices and
@@ -679,6 +690,13 @@ bool HolographicSpatialMappingMain::Render(
 			// Attach the view/projection constant buffer for this camera to the graphics pipeline.
 			bool cameraActive = pCameraResources->AttachViewProjectionBuffer(m_deviceResources);
 
+			//---
+			if (cameraActive) 
+			{
+				edgeRenderer->Render(pCameraResources->IsRenderingStereoscopic());
+			}
+			//---
+
 #ifdef DRAW_SAMPLE_CONTENT
 			// Only render world-locked content when positional tracking is active.
 			if (cameraActive)
@@ -713,6 +731,7 @@ void HolographicSpatialMappingMain::OnDeviceLost()
 	delete &normalsMap;
 	delete &indexMap;
 	vertexMap, normalsMap, indexMap = nullptr;
+	edgeRenderer->ReleaseDeviceDependentResources();
 	//---
 #ifdef DRAW_SAMPLE_CONTENT
 	m_meshRenderer->ReleaseDeviceDependentResources();
@@ -726,6 +745,9 @@ void HolographicSpatialMappingMain::OnDeviceRestored()
 #ifdef DRAW_SAMPLE_CONTENT
 	m_meshRenderer->CreateDeviceDependentResources();
 #endif
+	//---
+	edgeRenderer->CreateDeviceDependentResources();
+	//---
 }
 
 void HolographicSpatialMappingMain::OnPositionalTrackingDeactivating(
