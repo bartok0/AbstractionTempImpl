@@ -17,6 +17,7 @@
 #include <d2d1effects_1.h>
 #include <d3d11_4.h>
 #include <DirectXColors.h>
+#define _XM_NO_INTRINSICS_
 #include <DirectXMath.h>
 #include <dwrite_2.h>
 #include <dxgi1_5.h>

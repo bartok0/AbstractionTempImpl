@@ -45,7 +45,6 @@
     <ClCompile Include="Content\RealtimeSurfaceMeshRenderer.cpp">
       <Filter>Content</Filter>
     </ClCompile>
-    <ClCompile Include="Abstraction.cpp" />
     <ClCompile Include="EdgeRenderer.cpp" />
   </ItemGroup>
   <ItemGroup>
@@ -67,7 +66,6 @@
     <ClInclude Include="Content\GetDataFromIBuffer.h">
       <Filter>Content</Filter>
     </ClInclude>
-    <ClInclude Include="Abstraction.h" />
     <ClInclude Include="EdgeRenderer.h" />
   </ItemGroup>
   <ItemGroup>
@@ -88,6 +86,7 @@
     </FxCompile>
     <FxCompile Include="EdgeVertexShader.hlsl" />
     <FxCompile Include="EdgePixelShader.hlsl" />
+    <FxCompile Include="PassThroughGeometryShader.hlsl" />
   </ItemGroup>
   <ItemGroup>
     <AppxManifest Include="Package.appxmanifest" />

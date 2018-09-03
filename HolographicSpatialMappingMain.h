@@ -62,7 +62,7 @@ namespace HolographicSpatialMapping
 		//---
 		enum EdgeOperator { SOD, ESOD };
 
-		//Mesh edge structure
+		/*
 		struct Edge
 		{
 			//Edge weight
@@ -88,21 +88,14 @@ namespace HolographicSpatialMapping
 				outlyingVertexNormals = neighbourVertexNormals;
 				edgeVertices = EdgeVertices;
 			}
+			
 		};
-
-		inline void assignEdgeIndices(Edge* edge, std::pair<unsigned int, unsigned int> indices){
-			edge->edgeIndices = indices;
-		}
-
-		inline void assignOutlyingIndices(Edge* edge, std::pair<unsigned int, unsigned int> indices) {
-			edge->outlyingIndices = indices;
-		};
+		*/
 
 		//Helper function for populating edge-list needed for edge-weight calculations
-		void PopulateEdgeList(Windows::Perception::Spatial::Surfaces::SpatialSurfaceMesh^ mesh);
-
-		//Function for calculating edge weight
-		void CalculateEdgeWeight(Edge edge, EdgeOperator mode);
+		void HolographicSpatialMapping::HolographicSpatialMappingMain::PopulateEdgeList(
+			Windows::Perception::Spatial::Surfaces::SpatialSurfaceMesh^ mesh
+		);
 		//---
 
     private:
@@ -177,22 +170,15 @@ namespace HolographicSpatialMapping
 		EdgeOperator mode = SOD;
 
 		double meshDensity = 1000.0;
+		float weightThreshold = 0.5f;
 
-		//Spatial surface mesh data used for feature extraction:
-		//std::vector<Windows::Storage::Streams::IBuffer^> vertexNormals;
-		//std::vector<Windows::Storage::Streams::IBuffer^> vertexIndices;
-		//std::vector<Windows::Storage::Streams::IBuffer^> vertexPositions;
+		//Weight calculation methods
+		float HolographicSpatialMapping::HolographicSpatialMappingMain::CalculateSODWeight(DirectX::XMFLOAT3 triangleA[3], DirectX::XMFLOAT3 triangleB[3]);
+		float HolographicSpatialMapping::HolographicSpatialMappingMain::CalculateESODWeight(DirectX::XMFLOAT3 vertexANormal, DirectX::XMFLOAT3 vertexBNormal);
 
-		//Triangle edge list
-		std::vector<Edge>* edgeList = nullptr;
-		//Edges to be drawn in the 'edge renderer'
-		std::vector<DirectX::XMFLOAT3> edgeVertices;
-
-		std::map<GUID,std::vector<DirectX::XMFLOAT3>>* vertexMap = nullptr;
-		std::map<GUID,std::vector<DirectX::XMFLOAT3>>* normalsMap = nullptr;
-		std::map<GUID, std::vector<unsigned short>>* indexMap = nullptr;
-
-		//std::vector<std::pair<DirectX::XMFLOAT3,DirectX::XMFLOAT3>> lineVertices;
+		//std::map<GUID,std::vector<DirectX::XMFLOAT3>>* vertexMap = nullptr;
+		//std::map<GUID,std::vector<DirectX::XMFLOAT3>>* normalsMap = nullptr;
+		//std::map<GUID,std::vector<unsigned short>>* indexMap = nullptr;
 		
 		std::mutex meshMutex;
 

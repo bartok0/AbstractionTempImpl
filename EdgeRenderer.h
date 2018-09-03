@@ -5,48 +5,47 @@
 class EdgeRenderer
 {
 public:
-	EdgeRenderer::EdgeRenderer();
+	struct EdgeVertexCollection {
+		Microsoft::WRL::ComPtr<ID3D11Buffer> vertexBuffer;
+		Microsoft::WRL::ComPtr<ID3D11Buffer> modelConstantBuffer;
+		UINT numVertices;
+	};
+
 	EdgeRenderer::EdgeRenderer(const std::shared_ptr<DX::DeviceResources>& deviceResources);
-	EdgeRenderer::~EdgeRenderer();
 
 	void EdgeRenderer::Render(bool isStereo);
 
-	void EdgeRenderer::Update(Windows::Perception::Spatial::SpatialCoordinateSystem^ coordinateSystem /*DATA POINTER FOR UPDATE??*/);
+	void EdgeRenderer::Update(Windows::Perception::Spatial::SpatialCoordinateSystem^ coordinateSystem);
 
-	//create/update vertex buffer method
+	//void EdgeRenderer::CreateBuffers(CreateBufferInput input);
 	void EdgeRenderer::UpdateEdgeVertexBuffer(DirectX::XMFLOAT3* vertices);
 
-	void CreateDeviceDependentResources();
-	void ReleaseDeviceDependentResources();
+	void EdgeRenderer::CreateDeviceDependentResources();
+	void EdgeRenderer::ReleaseDeviceDependentResources();
 
-	struct MVP_Struct {
-		Windows::Foundation::Numerics::float4x4 MVP;
-		MVP_Struct(Windows::Foundation::Numerics::float4x4 in) : MVP(in) {}
+	struct ViewProjectionStruct {
+		Windows::Foundation::Numerics::float4x4 VPmatrix[2];
 	};
 
 private:
-	//vertex buffer
-	Microsoft::WRL::ComPtr<ID3D11Buffer> edgeVertexPositions;
 
-	//transform / constant buffer(s)
-	ID3D11Buffer* mvp_constantBuffer;
+	std::vector<EdgeVertexCollection> edgeBuffers;
+	UINT vertexStride;
+	UINT vertexOffset;
 
-	//format
-
-
-	//stride(s)
-
+	Windows::Perception::Spatial::SpatialCoordinateSystem^ baseCoordinateSystem;
 
 	//shaders
 	Microsoft::WRL::ComPtr<ID3D11VertexShader> vertexShader;
 	Microsoft::WRL::ComPtr<ID3D11PixelShader> pixelShader;
+	Microsoft::WRL::ComPtr<ID3D11GeometryShader> geometryShader;
 
 	Microsoft::WRL::ComPtr<ID3D11InputLayout> inputLayout;
 	Microsoft::WRL::ComPtr<ID3D11RasterizerState> rasterizerState;
 
 	std::shared_ptr<DX::DeviceResources> deviceResources;
 
-	Windows::Foundation::Numerics::float4x4 MVP_M;
+	ViewProjectionStruct MVP_M;
 
 	std::mutex vertexMutex;
 	bool loadingComplete;
@@ -56,4 +55,3 @@ private:
 	//How often to pull new edge data
 	const float updateInterval = 1.0f;
 };
-
