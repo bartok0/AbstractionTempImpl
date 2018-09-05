@@ -95,6 +95,7 @@ namespace HolographicSpatialMapping
 		//Helper function for populating edge-list needed for edge-weight calculations
 		void HolographicSpatialMapping::HolographicSpatialMappingMain::PopulateEdgeList(
 			Windows::Perception::Spatial::Surfaces::SpatialSurfaceMesh^ mesh
+			,Windows::Perception::Spatial::SpatialCoordinateSystem^ base
 		);
 		//---
 

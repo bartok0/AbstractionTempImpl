@@ -8,7 +8,9 @@ public:
 	struct EdgeVertexCollection {
 		Microsoft::WRL::ComPtr<ID3D11Buffer> vertexBuffer;
 		Microsoft::WRL::ComPtr<ID3D11Buffer> modelConstantBuffer;
+		Windows::Perception::Spatial::SpatialCoordinateSystem^ coord;
 		UINT numVertices;
+		Windows::Foundation::Numerics::float3 vertexScale;
 	};
 
 	EdgeRenderer::EdgeRenderer(const std::shared_ptr<DX::DeviceResources>& deviceResources);
@@ -17,21 +19,33 @@ public:
 
 	void EdgeRenderer::Update(Windows::Perception::Spatial::SpatialCoordinateSystem^ coordinateSystem);
 
-	//void EdgeRenderer::CreateBuffers(CreateBufferInput input);
-	void EdgeRenderer::UpdateEdgeVertexBuffer(DirectX::XMFLOAT3* vertices);
+	void EdgeRenderer::CreateBuffers(std::vector<DirectX::XMFLOAT3>* vertices, Windows::Perception::Spatial::SpatialCoordinateSystem^ meshCoord, Windows::Perception::Spatial::SpatialCoordinateSystem^ base);
+	void EdgeRenderer::UpdateEdgeBuffers(std::vector<DirectX::XMFLOAT3>* vertices, Windows::Perception::Spatial::SpatialCoordinateSystem ^ model, Windows::Perception::Spatial::SpatialCoordinateSystem ^ base);
 
 	void EdgeRenderer::CreateDeviceDependentResources();
 	void EdgeRenderer::ReleaseDeviceDependentResources();
 
-	struct ViewProjectionStruct {
-		Windows::Foundation::Numerics::float4x4 VPmatrix[2];
+	struct ModelConstantStruct {
+		Windows::Foundation::Numerics::float4x4 model;
 	};
 
 private:
+	//**
+	Microsoft::WRL::ComPtr<ID3D11Buffer> edgeVertexBuffer;
+	Microsoft::WRL::ComPtr<ID3D11Buffer> modelTransformBuffer;
+	std::vector<DirectX::XMFLOAT3>* edgeVertices;
+
+	UINT vertexCount = 0;
+	UINT vertexStride;
+	UINT vertexOffset = 0;
+	
+
+	bool buffersReady = false;
+	//**
+
 
 	std::vector<EdgeVertexCollection> edgeBuffers;
-	UINT vertexStride;
-	UINT vertexOffset;
+	
 
 	Windows::Perception::Spatial::SpatialCoordinateSystem^ baseCoordinateSystem;
 
@@ -45,13 +59,6 @@ private:
 
 	std::shared_ptr<DX::DeviceResources> deviceResources;
 
-	ViewProjectionStruct MVP_M;
-
 	std::mutex vertexMutex;
 	bool loadingComplete;
-	bool isStereo;
-
-	float timeSinceUpdate;
-	//How often to pull new edge data
-	const float updateInterval = 1.0f;
 };

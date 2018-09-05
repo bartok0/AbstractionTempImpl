@@ -201,19 +201,23 @@ void HolographicSpatialMappingMain::OnSurfacesChanged(
 //---
 void HolographicSpatialMapping::HolographicSpatialMappingMain::PopulateEdgeList(
 	Windows::Perception::Spatial::Surfaces::SpatialSurfaceMesh^ mesh
+	,Windows::Perception::Spatial::SpatialCoordinateSystem^ base
 ) {
 	std::vector<unsigned short> indexData;
 	std::vector<DirectX::XMFLOAT3> vertexData;
 	std::vector<DirectX::XMFLOAT3> vertexNormalsData;
 
 	DirectX::PackedVector::XMSHORTN4* rawVertexData = (DirectX::PackedVector::XMSHORTN4*)GetDataFromIBuffer(mesh->VertexPositions->Data);
-	float3 vertexScale = mesh->VertexPositionScale;
+	//auto rawVertexData = (float4*)GetDataFromIBuffer(mesh->VertexPositions->Data);
+	auto vertexScale = mesh->VertexPositionScale;
 	unsigned int InputVertexCount = mesh->VertexPositions->ElementCount;
 
 	for (unsigned int index = 0; index < InputVertexCount; index++)
 	{
 		// read the currentPos as an XMSHORTN4. 
 		DirectX::PackedVector::XMSHORTN4 currentPos = DirectX::PackedVector::XMSHORTN4(rawVertexData[index]);
+		//float4 point = (float4)rawVertexData[index];
+
 		DirectX::XMFLOAT4 xmfloat;
 
 		// XMVECTOR knows how to convert the XMSHORTN4 to actual floating point coordinates. 
@@ -224,6 +228,7 @@ void HolographicSpatialMapping::HolographicSpatialMappingMain::PopulateEdgeList(
 
 		// Which need to be scaled by the vertex scale.
 		DirectX::XMFLOAT4 scaledVector = DirectX::XMFLOAT4(xmfloat.x*vertexScale.x, xmfloat.y*vertexScale.y, xmfloat.z*vertexScale.z, xmfloat.w);
+		//DirectX::XMFLOAT4 scaledVector = DirectX::XMFLOAT4(point.x*vertexScale.x, point.y*vertexScale.y, point.z*vertexScale.z, point.w);
 
 		vertexData.push_back(DirectX::XMFLOAT3(scaledVector.x, scaledVector.y, scaledVector.z));
 		//float4 nextFloat = float4(scaledVector.x, scaledVector.y, scaledVector.z, scaledVector.w);
@@ -277,15 +282,14 @@ void HolographicSpatialMapping::HolographicSpatialMappingMain::PopulateEdgeList(
 		indexData.push_back(xmfloat.w);
 	}
 
-	//STORE IN INDEX GLOBAL(?)
-
+	/*
 	char msgbuffer[512];
 	unsigned int val = (unsigned int)indexData.size();
 	sprintf_s(msgbuffer, 512, "\nNumber of indices: %u \nNumber of vertices: %u\nNumber of normals: %u\n", val, InputVertexCount, InputNormalsCount);
 	OutputDebugStringA(msgbuffer);
+	*/
 
 	//Populate edgelist
-	GUID meshID = mesh->SurfaceInfo->Id;
 	int edgeCounter = 0;
 	std::vector<DirectX::XMFLOAT3> vertexPositions;
 	Windows::Perception::Spatial::SpatialCoordinateSystem^ modelCoord = mesh->CoordinateSystem;
@@ -360,10 +364,10 @@ void HolographicSpatialMapping::HolographicSpatialMappingMain::PopulateEdgeList(
 			}
 		}
 	}
-	meshMutex.lock();
-	//edgeRenderer->CreateBuffers(vertexPositions, modelCoord);
-	//edgeList->insert(edgeList->end(),newEdgesList.begin(),newEdgesList.end());
-	meshMutex.unlock();
+	//meshMutex.lock();
+	const auto vertexPtr = &vertexPositions;
+	edgeRenderer->UpdateEdgeBuffers(vertexPtr, modelCoord, base);
+	//meshMutex.unlock();
 
 	char buffr[255];
 	sprintf_s(buffr, 255, "\nFound %d feature edges\n\n", edgeCounter);
@@ -406,36 +410,6 @@ float HolographicSpatialMapping::HolographicSpatialMappingMain::CalculateESODWei
 
 	return DirectX::XMScalarACos(DirectX::XMVectorGetX(DirectX::XMVector3Dot(DirectX::XMVector3Normalize(vertexAnormal), DirectX::XMVector3Normalize(vertexBnormal))));
 }
-/*
-void HolographicSpatialMapping::HolographicSpatialMappingMain::CalculateEdgeWeight(Edge edge, EdgeOperator mode)
-{
-	auto it1 = edge.triangleVertices.begin();
-
-	switch (mode) {
-	case SOD:
-
-		//ASSUMPTION OF VERTEX ORDER: {<triangleAvertices>,<triangleBvertices>}
-		DirectX::XMVECTOR triangleANormal = normal(DirectX::XMVECTOR() = { it1->x,it1->y,it1->z }, DirectX::XMVECTOR() = { (it1 + 1)->x,(it1 + 1)->y ,(it1 + 1)->z }, DirectX::XMVECTOR() = { (it1 + 2)->x ,(it1 + 2)->y ,(it1 + 2)->z });
-		DirectX::XMVECTOR triangleBNormal = normal(DirectX::XMVECTOR() = { (it1 + 3)->x,(it1 + 3)->y,(it1 + 3)->z }, DirectX::XMVECTOR() = { (it1 + 4)->x,(it1 + 4)->y ,(it1 + 4)->z }, DirectX::XMVECTOR() = { (it1 + 5)->x ,(it1 + 5)->y ,(it1 + 5)->z });
-
-		edge.weight = DirectX::XMScalarACos(DirectX::XMVectorGetX(DirectX::XMVector3Dot(DirectX::XMVector3Normalize(triangleANormal), DirectX::XMVector3Normalize(triangleBNormal))));
-		break;
-
-	case ESOD:
-
-		DirectX::XMVECTOR vertexAnormal = DirectX::XMLoadFloat3(&edge.outlyingVertexNormals.first);
-		DirectX::XMVECTOR vertexBnormal = DirectX::XMLoadFloat3(&edge.outlyingVertexNormals.second);
-
-		edge.weight = DirectX::XMScalarACos(DirectX::XMVectorGetX(DirectX::XMVector3Dot(DirectX::XMVector3Normalize(vertexAnormal), DirectX::XMVector3Normalize(vertexBnormal))));
-
-		break;
-	default:
-		OutputDebugStringW(L"No opearator-mode selected for edge-weight calculations!, available are: SOD, ESOD\n");
-		return;
-	}
-	
-}
-*/
 //---
 
 // Updates the application state once per frame.
@@ -586,7 +560,7 @@ HolographicFrame^ HolographicSpatialMappingMain::Update()
 
 			auto createMeshTask = create_task(surfaceInfo->TryComputeLatestMeshAsync(meshDensity, options));
 
-			createMeshTask.then([this, id](SpatialSurfaceMesh^ mesh)
+			createMeshTask.then([this, id, currentCoordinateSystem](SpatialSurfaceMesh^ mesh)
 			{
 				if (mesh != nullptr)
 				{
@@ -594,9 +568,9 @@ HolographicFrame^ HolographicSpatialMappingMain::Update()
 					sprintf_s(msgbuf, 100, "Surface ID: %u:\n", mesh->SurfaceInfo->Id);
 					OutputDebugStringA(msgbuf);
 
-					auto operation = create_async([this,mesh]
+					auto operation = create_async([this,mesh,currentCoordinateSystem]
 					{
-						PopulateEdgeList(mesh);
+						PopulateEdgeList(mesh,currentCoordinateSystem);
 					});
 					auto populateTask = create_task(operation);
 				}
