@@ -340,7 +340,6 @@ void HolographicSpatialMapping::HolographicSpatialMappingMain::PopulateEdgeList(
 						switch (mode) {
 						case SOD:
 							edgeWeight = CalculateSODWeight(triA, triB);
-							edgeWeight = CalculateSODWeight(triA, triB);
 							break;
 						case ESOD:
 							edgeWeight = CalculateESODWeight(DirectX::XMFLOAT3(vertexNormalsData[neighbourIndices[0]]), DirectX::XMFLOAT3());
@@ -349,7 +348,7 @@ void HolographicSpatialMapping::HolographicSpatialMappingMain::PopulateEdgeList(
 							OutputDebugStringA("\nNO MODE SELECTED!\n");
 						}
 
-						if (edgeWeight > weightThreshold) {
+						if (true/*edgeWeight > weightThreshold*/) {
 							vertexPositions.push_back(vertexData[edgeIndices[0]]);
 							vertexPositions.push_back(vertexData[edgeIndices[1]]);
 							edgeCounter++;
@@ -369,10 +368,6 @@ void HolographicSpatialMapping::HolographicSpatialMappingMain::PopulateEdgeList(
 	const auto vertexPtr = &vertexPositions;
 	edgeRenderer->CreateBuffer(vertexPtr, modelCoord);
 	//meshMutex.unlock();
-
-	char buffr[255];
-	sprintf_s(buffr, 255, "\nFound %d feature edges\n\n", edgeCounter);
-	OutputDebugStringA(buffr);
 	return;
 }
 
@@ -562,10 +557,6 @@ HolographicFrame^ HolographicSpatialMappingMain::Update()
 			{
 				if (mesh != nullptr)
 				{
-					char msgbuf[100];
-					sprintf_s(msgbuf, 100, "Surface ID: %u:\n", mesh->SurfaceInfo->Id);
-					OutputDebugStringA(msgbuf);
-
 					auto operation = create_async([this, mesh, currentCoordinateSystem]
 					{
 						PopulateEdgeList(mesh, currentCoordinateSystem);
@@ -663,7 +654,7 @@ bool HolographicSpatialMappingMain::Render(
 			if (cameraActive)
 			{
 				//Draw the sample hologram.
-				m_meshRenderer->Render(pCameraResources->IsRenderingStereoscopic(), m_drawWireframe);
+				//m_meshRenderer->Render(pCameraResources->IsRenderingStereoscopic(), m_drawWireframe);
 			}
 #endif
 

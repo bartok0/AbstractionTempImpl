@@ -17,6 +17,7 @@ void EdgeRenderer::Update(Windows::Perception::Spatial::SpatialCoordinateSystem 
 	
 	auto context = deviceResources->GetD3DDeviceContext();
 
+	vertexMutex.lock();
 	for (auto it = edgeBuffers->begin(); it != edgeBuffers->end(); it++) {
 		Windows::Foundation::Numerics::float4x4 model;
 		DirectX::XMStoreFloat4x4(&model,
@@ -32,6 +33,7 @@ void EdgeRenderer::Update(Windows::Perception::Spatial::SpatialCoordinateSystem 
 			0
 		);
 	}
+	vertexMutex.unlock();
 }
 
 void EdgeRenderer::CreateBuffer(std::vector<DirectX::XMFLOAT3>* vertices, Windows::Perception::Spatial::SpatialCoordinateSystem^ modelCoord) {
