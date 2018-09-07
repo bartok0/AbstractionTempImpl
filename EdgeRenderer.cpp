@@ -17,55 +17,37 @@ void EdgeRenderer::Update(Windows::Perception::Spatial::SpatialCoordinateSystem 
 	
 	auto context = deviceResources->GetD3DDeviceContext();
 
-	for (auto it = edgeBuffers.begin(); it != edgeBuffers.end(); it++) {
-		Windows::Foundation::Numerics::float4x4 modelData = it->coord->TryGetTransformTo(base)->Value;
+	for (auto it = edgeBuffers->begin(); it != edgeBuffers->end(); it++) {
+		Windows::Foundation::Numerics::float4x4 model;
+		DirectX::XMStoreFloat4x4(&model,
+			DirectX::XMMatrixTranspose(DirectX::XMLoadFloat4x4(&it->coord->TryGetTransformTo(base)->Value)));
+		
 
 		context->UpdateSubresource(
 			it->modelConstantBuffer.Get(),
 			0,
 			NULL,
-			&modelData,
+			&model,
 			0,
 			0
 		);
 	}
-	
-	//TODO UPDATE VERTICES (?)
 }
 
-void EdgeRenderer::UpdateEdgeBuffers(std::vector<DirectX::XMFLOAT3>* vertices, Windows::Perception::Spatial::SpatialCoordinateSystem ^ model, Windows::Perception::Spatial::SpatialCoordinateSystem ^ base) {
-	//Guard agains data-race
+void EdgeRenderer::CreateBuffer(std::vector<DirectX::XMFLOAT3>* vertices, Windows::Perception::Spatial::SpatialCoordinateSystem^ modelCoord) {
 	vertexMutex.lock();
 	buffersReady = false;
 	vertexMutex.unlock();
 	auto device = deviceResources->GetD3DDevice();
 
-	std::vector<DirectX::XMFLOAT3> transformedVertices;
-	DirectX::XMMATRIX modelTransform = DirectX::XMLoadFloat4x4(&model->TryGetTransformTo(base)->Value);
-	for (std::vector<DirectX::XMFLOAT3>::iterator it = vertices->begin(); it != vertices->end(); it++) {
-		DirectX::XMVECTOR vertexVec = DirectX::XMLoadFloat3(&(DirectX::XMFLOAT3)(*it));
-		DirectX::XMFLOAT3 transformedVertex;
-		DirectX::XMStoreFloat3(&transformedVertex, DirectX::XMVector3Transform(vertexVec, modelTransform));
-		transformedVertices.push_back(transformedVertex);
-	}
-
-	//edgeVertices->insert(edgeVertices->end(), transformedVertices.begin(), transformedVertices.end());
-	
-	for (auto it = transformedVertices.begin(); it != transformedVertices.end(); it++) {
-		edgeVertices->push_back(*it);
-	}
-	
-	vertexCount = edgeVertices->size();
-	auto dataptr = edgeVertices->data();
-	
-	if (edgeVertexBuffer != nullptr) {
-		edgeVertexBuffer = nullptr;
-	}
+	EdgeVertexCollection newCollection;
+	newCollection.coord = modelCoord;
+	newCollection.numVertices = vertices->size();
 
 	D3D11_BUFFER_DESC vBufferDesc;
 	ZeroMemory(&vBufferDesc, sizeof(vBufferDesc));
 	vBufferDesc.Usage = D3D11_USAGE_DEFAULT;
-	vBufferDesc.ByteWidth = sizeof(DirectX::XMFLOAT3) * vertexCount;
+	vBufferDesc.ByteWidth = sizeof(DirectX::XMFLOAT3) * vertices->size();
 	vBufferDesc.BindFlags = D3D11_BIND_VERTEX_BUFFER;
 	vBufferDesc.CPUAccessFlags = 0;
 	vBufferDesc.MiscFlags = 0;
@@ -73,63 +55,32 @@ void EdgeRenderer::UpdateEdgeBuffers(std::vector<DirectX::XMFLOAT3>* vertices, W
 
 	D3D11_SUBRESOURCE_DATA vBufferData;
 	ZeroMemory(&vBufferData, sizeof(vBufferData));
-	vBufferData.pSysMem = edgeVertices->data();
+	vBufferData.pSysMem = vertices->data();
 	vBufferData.SysMemPitch = 0;
 	vBufferData.SysMemSlicePitch = 0;
 
-	device->CreateBuffer(&vBufferDesc, &vBufferData, edgeVertexBuffer.GetAddressOf());
+	device->CreateBuffer(&vBufferDesc, &vBufferData, newCollection.vertexBuffer.GetAddressOf());
+
+	D3D11_BUFFER_DESC cBufferDesc;
+	ZeroMemory(&cBufferDesc, sizeof(cBufferDesc));
+	cBufferDesc.Usage = D3D11_USAGE_DEFAULT;
+	cBufferDesc.ByteWidth = sizeof(Windows::Foundation::Numerics::float4x4);
+	cBufferDesc.BindFlags = D3D11_BIND_CONSTANT_BUFFER;
+	cBufferDesc.CPUAccessFlags = 0;
+	cBufferDesc.MiscFlags = 0;
+	cBufferDesc.StructureByteStride = sizeof(Windows::Foundation::Numerics::float4x4);
+
+	D3D11_SUBRESOURCE_DATA cBufferData;
+	ZeroMemory(&cBufferData, sizeof(cBufferData));
+	cBufferData.pSysMem = Windows::Foundation::Numerics::float4x4::identity;
+	cBufferData.SysMemPitch = 0;
+	cBufferData.SysMemSlicePitch = 0;
+
+	device->CreateBuffer(&cBufferDesc, &cBufferData, newCollection.modelConstantBuffer.GetAddressOf());
+
+	edgeBuffers->push_back(newCollection);
 
 	buffersReady = true;
-}
-
-void EdgeRenderer::CreateBuffers(std::vector<DirectX::XMFLOAT3>* vertices,
-	Windows::Perception::Spatial::SpatialCoordinateSystem^ meshCoord,
-	Windows::Perception::Spatial::SpatialCoordinateSystem^ base)
-{
-	auto device = deviceResources->GetD3DDevice();
-
-	EdgeVertexCollection newCollection;
-	newCollection.vertexBuffer = Microsoft::WRL::ComPtr<ID3D11Buffer>();
-	newCollection.modelConstantBuffer = Microsoft::WRL::ComPtr<ID3D11Buffer>();
-	newCollection.coord = meshCoord;
-	newCollection.numVertices = vertices->size();
-	Windows::Foundation::Numerics::float4x4 model = meshCoord->TryGetTransformTo(base)->Value;
-
-	D3D11_BUFFER_DESC vBufferDesc;
-	vBufferDesc.Usage = D3D11_USAGE_DEFAULT;
-	vBufferDesc.ByteWidth = sizeof(DirectX::XMFLOAT3) * (unsigned int)vertices->size();
-	vBufferDesc.BindFlags = D3D11_BIND_VERTEX_BUFFER;
-	vBufferDesc.CPUAccessFlags = 0;
-	vBufferDesc.MiscFlags = 0;
-
-	D3D11_SUBRESOURCE_DATA vBufferData;
-	vBufferData.pSysMem = &vertices;
-	vBufferData.SysMemPitch = 0;
-	vBufferData.SysMemSlicePitch = 0;
-	DX::ThrowIfFailed(
-		device->CreateBuffer(&vBufferDesc, &vBufferData, newCollection.vertexBuffer.GetAddressOf())
-	);
-	/*
-	D3D11_BUFFER_DESC iBufferDesc;
-	iBufferDesc.Usage = D3D11_USAGE_DEFAULT;
-	iBufferDesc.ByteWidth = sizeof(indices);
-	iBufferDesc.BindFlags = D3D11_BIND_INDEX_BUFFER;
-	iBufferDesc.CPUAccessFlags = 0;
-	iBufferDesc.MiscFlags = 0;
-
-	D3D11_SUBRESOURCE_DATA iBufferData;
-	iBufferData.pSysMem = indices;
-	iBufferData.SysMemPitch = 0;
-	iBufferData.SysMemSlicePitch = 0;
-
-	device->CreateBuffer(&iBufferDesc, &iBufferData, indexBuffer.GetAddressOf());
-	*/
-
-	//vertexMutex.lock();
-	edgeBuffers.push_back(newCollection);
-	//vertexMutex.unlock();
-
-	OutputDebugStringA("\n\n HERE DEBUGS!? \n\n");
 }
 
 void EdgeRenderer::Render(bool isStereo)
@@ -146,7 +97,7 @@ void EdgeRenderer::Render(bool isStereo)
 	}
 
 	bool usingVprt = deviceResources->GetDeviceSupportsVprt();
-	vertexStride = sizeof(DirectX::XMFLOAT3);
+	
 
 	auto context = deviceResources->GetD3DDeviceContext();
 
@@ -157,23 +108,30 @@ void EdgeRenderer::Render(bool isStereo)
 	if (!usingVprt)
 		context->GSSetShader(geometryShader.Get(), nullptr, 0);
 	context->RSSetState(rasterizerState.Get());
+	
+	for (auto it = edgeBuffers->begin(); it != edgeBuffers->end(); it++) {
+		context->IASetVertexBuffers(
+			0,
+			1,
+			it->vertexBuffer.GetAddressOf(),
+			&vertexStride,
+			&vertexOffset
+		);
 
-	context->IASetVertexBuffers(
-		0,
-		1,
-		edgeVertexBuffer.GetAddressOf(),
-		&vertexStride,
-		&vertexOffset
-	);
+		context->VSSetConstantBuffers(
+			0, 
+			1, 
+			it->modelConstantBuffer.GetAddressOf()
+		);
 
-	//context->VSSetConstantBuffers(0, 1, modelTransformBuffer.GetAddressOf());
-
-	context->DrawInstanced(
-		vertexCount,
-		isStereo ? 2 : 1,
-		0,
-		0
-	);
+		context->DrawInstanced(
+			it->numVertices,
+			isStereo ? 2 : 1,
+			0,
+			0
+		);
+	}
+	
 	//Release lock after drawing the frame
 	vertexMutex.unlock();
 }
@@ -182,18 +140,9 @@ void EdgeRenderer::CreateDeviceDependentResources()
 {
 	auto device = deviceResources->GetD3DDevice();
 	bool usingVprt = deviceResources->GetDeviceSupportsVprt();
-	edgeVertices = new std::vector<DirectX::XMFLOAT3>;
-
-	//Inititalize model constant buffer
-	D3D11_BUFFER_DESC cBufferDesc;
-	cBufferDesc.ByteWidth = sizeof(ModelConstantStruct);
-	cBufferDesc.Usage = D3D11_USAGE_DEFAULT;
-	cBufferDesc.BindFlags = D3D11_BIND_CONSTANT_BUFFER;
-	cBufferDesc.CPUAccessFlags = 0;
-	cBufferDesc.MiscFlags = 0;
-	cBufferDesc.StructureByteStride = 0;
-
-	device->CreateBuffer(&cBufferDesc, nullptr, modelTransformBuffer.GetAddressOf());
+	
+	edgeBuffers = new std::vector<EdgeVertexCollection>;
+	vertexStride = sizeof(DirectX::XMFLOAT3);
 
 	Concurrency::task<std::vector<byte>> loadVSTask = DX::ReadDataAsync(L"ms-appx:///EdgeVertexShader.cso");
 	Concurrency::task<std::vector<byte>> loadPSTask = DX::ReadDataAsync(L"ms-appx:///EdgePixelShader.cso");
@@ -285,13 +234,12 @@ void EdgeRenderer::ReleaseDeviceDependentResources()
 	pixelShader.Reset();
 	geometryShader.Reset();
 	rasterizerState.Reset();
-
-	edgeVertexBuffer.Reset();
-	modelTransformBuffer.Reset();
-	delete edgeVertices;
 	buffersReady = false;
 	loadingComplete = false;
-	vertexCount = 0;
+	for (auto it = edgeBuffers->begin(); it != edgeBuffers->end(); it++) {
+		it->modelConstantBuffer.Reset();
+		it->vertexBuffer.Reset();
+	}
 	//TODO: CLEAR OUT VERTEX DATA
 }
 

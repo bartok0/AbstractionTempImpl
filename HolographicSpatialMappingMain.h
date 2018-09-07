@@ -171,7 +171,7 @@ namespace HolographicSpatialMapping
 		EdgeOperator mode = SOD;
 
 		double meshDensity = 1000.0;
-		float weightThreshold = 0.5f;
+		float weightThreshold = 0.8f;
 
 		//Weight calculation methods
 		float HolographicSpatialMapping::HolographicSpatialMappingMain::CalculateSODWeight(DirectX::XMFLOAT3 triangleA[3], DirectX::XMFLOAT3 triangleB[3]);

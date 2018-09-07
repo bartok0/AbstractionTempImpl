@@ -29,7 +29,7 @@ VertexShaderOutput main( input input )
 	float4 pos4 = float4(input.pos, 1.0f);
 	uint idx = input.instId % 2;
 
-	//pos4 = mul(pos4, model);
+	pos4 = mul(pos4, model);
 
 	output.pos = mul(pos4, viewProjection[idx]);
 	output.viewId = idx;

@@ -201,14 +201,15 @@ void HolographicSpatialMappingMain::OnSurfacesChanged(
 //---
 void HolographicSpatialMapping::HolographicSpatialMappingMain::PopulateEdgeList(
 	Windows::Perception::Spatial::Surfaces::SpatialSurfaceMesh^ mesh
-	,Windows::Perception::Spatial::SpatialCoordinateSystem^ base
+	, Windows::Perception::Spatial::SpatialCoordinateSystem^ base
 ) {
-	std::vector<unsigned short> indexData;
+	//std::vector<DirectX::XMUINT3> indexData;
+	std::vector<UINT> indexData;
 	std::vector<DirectX::XMFLOAT3> vertexData;
 	std::vector<DirectX::XMFLOAT3> vertexNormalsData;
 
 	DirectX::PackedVector::XMSHORTN4* rawVertexData = (DirectX::PackedVector::XMSHORTN4*)GetDataFromIBuffer(mesh->VertexPositions->Data);
-	//auto rawVertexData = (float4*)GetDataFromIBuffer(mesh->VertexPositions->Data);
+	//BYTE* rawVertexData = GetDataFromIBuffer(mesh->VertexPositions->Data);
 	auto vertexScale = mesh->VertexPositionScale;
 	unsigned int InputVertexCount = mesh->VertexPositions->ElementCount;
 
@@ -216,7 +217,6 @@ void HolographicSpatialMapping::HolographicSpatialMappingMain::PopulateEdgeList(
 	{
 		// read the currentPos as an XMSHORTN4. 
 		DirectX::PackedVector::XMSHORTN4 currentPos = DirectX::PackedVector::XMSHORTN4(rawVertexData[index]);
-		//float4 point = (float4)rawVertexData[index];
 
 		DirectX::XMFLOAT4 xmfloat;
 
@@ -226,27 +226,25 @@ void HolographicSpatialMapping::HolographicSpatialMappingMain::PopulateEdgeList(
 		// STore that into an XMFLOAT4 so we can read the values.
 		DirectX::XMStoreFloat4(&xmfloat, xmvec);
 
-		// Which need to be scaled by the vertex scale.
 		DirectX::XMFLOAT4 scaledVector = DirectX::XMFLOAT4(xmfloat.x*vertexScale.x, xmfloat.y*vertexScale.y, xmfloat.z*vertexScale.z, xmfloat.w);
-		//DirectX::XMFLOAT4 scaledVector = DirectX::XMFLOAT4(point.x*vertexScale.x, point.y*vertexScale.y, point.z*vertexScale.z, point.w);
 
 		vertexData.push_back(DirectX::XMFLOAT3(scaledVector.x, scaledVector.y, scaledVector.z));
-		//float4 nextFloat = float4(scaledVector.x, scaledVector.y, scaledVector.z, scaledVector.w);
+		//vertexData.push_back(scaledVector.x);
+		//vertexData.push_back(scaledVector.y);
+		//vertexData.push_back(scaledVector.z);
 	}
 
-	//STORE IN VERTEX GLOBAL(?)
-
-	DirectX::PackedVector::XMSHORTN4* rawNormalData = (DirectX::PackedVector::XMSHORTN4*)GetDataFromIBuffer(mesh->VertexNormals->Data);
+	DirectX::PackedVector::XMBYTEN4* rawNormalData = (DirectX::PackedVector::XMBYTEN4*)GetDataFromIBuffer(mesh->VertexNormals->Data);
 	unsigned int InputNormalsCount = mesh->VertexNormals->ElementCount;
 
 	for (unsigned int index = 0; index < InputNormalsCount; index++)
 	{
 		// read the currentPos as an XMSHORTN4. 
-		DirectX::PackedVector::XMSHORTN4 currentPos = DirectX::PackedVector::XMSHORTN4(rawNormalData[index]);
+		DirectX::PackedVector::XMBYTEN4 currentPos = DirectX::PackedVector::XMBYTEN4(rawNormalData[index]);
 		DirectX::XMFLOAT4 xmfloat;
 
 		// XMVECTOR knows how to convert the XMSHORTN4 to actual floating point coordinates. 
-		DirectX::XMVECTOR xmvec = XMLoadShortN4(&currentPos);
+		DirectX::XMVECTOR xmvec = DirectX::PackedVector::XMLoadByteN4(&currentPos);
 
 		// STore that into an XMFLOAT4 so we can read the values.
 		DirectX::XMStoreFloat4(&xmfloat, xmvec);
@@ -255,27 +253,32 @@ void HolographicSpatialMapping::HolographicSpatialMappingMain::PopulateEdgeList(
 		DirectX::XMFLOAT4 scaledVector = DirectX::XMFLOAT4(xmfloat.x, xmfloat.y, xmfloat.z, xmfloat.w);
 
 		vertexNormalsData.push_back(DirectX::XMFLOAT3(scaledVector.x, scaledVector.y, scaledVector.z));
+		//vertexNormalsData.push_back(scaledVector.x);
+		//vertexNormalsData.push_back(scaledVector.y);
+		//vertexNormalsData.push_back(scaledVector.z);
 	}
 
-	//STORE IN NORMAL GLOBAL(?)
-
-	DirectX::XMUINT4* rawIndexData = (DirectX::XMUINT4*)GetDataFromIBuffer(mesh->TriangleIndices->Data);
+	DirectX::PackedVector::XMUSHORT4* rawIndexData = (DirectX::PackedVector::XMUSHORT4*)GetDataFromIBuffer(mesh->TriangleIndices->Data);
+	//BYTE* rawIndexData = GetDataFromIBuffer(mesh->TriangleIndices->Data);
+	//unsigned int InputIndexCount = mesh->TriangleIndices->ElementCount / 4;
 	unsigned int InputIndexCount = mesh->TriangleIndices->ElementCount / 4;
-
 	for (unsigned int index = 0; index < InputIndexCount; index++)
 	{
 		// read the currentPos as an XMSHORTN4.
-		DirectX::XMUINT4 currentPos = DirectX::XMUINT4(rawIndexData[index]);
+		//DirectX::XMUINT4 currentPos = DirectX::XMUINT4(rawIndexData[index]);
+		DirectX::PackedVector::XMUSHORT4 currentPos = (DirectX::PackedVector::XMUSHORT4)rawIndexData[index];
 		DirectX::XMUINT4 xmfloat;
 
 		// XMVECTOR knows how to convert the XMSHORTN4 to actual floating point coordinates. 
-		DirectX::XMVECTOR xmvec = DirectX::XMLoadUInt4(&currentPos);
+		DirectX::XMVECTOR xmvec = DirectX::PackedVector::XMLoadUShort4(&currentPos);
 
 		// STore that into an XMFLOAT4 so we can read the values.
 		DirectX::XMStoreUInt4(&xmfloat, xmvec);
 
 		// Which need to be scaled by the vertex scale.
 		//DirectX::PackedVector::XMUSHORT4 scaledVector = DirectX::PackedVector::XMUSHORT4(xmfloat.x, xmfloat.y, xmfloat.z, xmfloat.w);
+		//indexData.push_back(DirectX::XMUINT3(xmfloat.x, xmfloat.y, xmfloat.z));
+
 		indexData.push_back(xmfloat.x);
 		indexData.push_back(xmfloat.y);
 		indexData.push_back(xmfloat.z);
@@ -295,37 +298,32 @@ void HolographicSpatialMapping::HolographicSpatialMappingMain::PopulateEdgeList(
 	Windows::Perception::Spatial::SpatialCoordinateSystem^ modelCoord = mesh->CoordinateSystem;
 
 	for (auto it1 = indexData.begin(); it1 != indexData.end(); it1 += 3) {
+		//There is no guarantee that 'index/vertex/normal count' % 3 = 0.
+		if (it1 + 1 == indexData.end() || it1 + 2 == indexData.end()) {
+			return;
+		}
+		unsigned int TriangleAIndices[3] = { *it1,*(it1 + 1),*(it1 + 2) };
 
-		//There is no guarantee that 'index count' % 3 = 0.
-		if ((it1 + 1) == indexData.end())
-			break;
-		if ((it1 + 2) == indexData.end())
-			break;
+		for (auto it2 = it1 + 3; it2 != indexData.end(); it2+=3) {
+			//There is no guarantee that 'index/vertex/normal count' % 3 = 0.
+			if (it2 + 1 == indexData.end() || it2 + 2 == indexData.end()) {
+				return;
+			}
+			unsigned int TriangleBIndices[3] = { *it2,*(it2 + 1),*(it2 + 2) };
 
-		unsigned short TriangleAIndices[3] = { *it1,*(it1 + 1),*(it1 + 2) };
-
-		for (auto it2 = it1 + 3; it2 != indexData.end(); it2 += 3) {
-			//There is no guarantee that 'index count' % 3 = 0.
-			if ((it2 + 1) == indexData.end())
-				break;
-			if ((it2 + 2) == indexData.end())
-				break;
-
-			unsigned short TriangleBIndices[3] = { *it2,*(it2 + 1),*(it2 + 2) };
-
-			std::vector<unsigned short> edgeIndices = {};
-			std::vector<unsigned short> neighbourIndices = {};
+			std::vector<UINT16> edgeIndices = {};
+			std::vector<UINT16> neighbourIndices = {};
 
 			for (int i = 0; i < 3; i++) {
-				unsigned short A = TriangleAIndices[i];
+				UINT16 A = TriangleAIndices[i];
 				for (int j = 0; j < 3; j++) {
 					if (A == TriangleBIndices[j])
 						edgeIndices.push_back(A);
 
 					if (edgeIndices.size() > 1) {
 						//The triangles have a shared edge, Construct the new edge-data and add it to the edgelist
-						unsigned short edgeIndexA = edgeIndices[0];
-						unsigned short edgeIndexB = edgeIndices[1];
+						UINT16 edgeIndexA = edgeIndices[0];
+						UINT16 edgeIndexB = edgeIndices[1];
 
 						for (int i = 0; i < 3; i++) {
 							if (TriangleAIndices[i] != edgeIndexA || TriangleAIndices[i] != edgeIndexB)
@@ -334,17 +332,18 @@ void HolographicSpatialMapping::HolographicSpatialMappingMain::PopulateEdgeList(
 								neighbourIndices.push_back(TriangleBIndices[i]);
 						}
 
-						float edgeWeight;
-						DirectX::XMFLOAT3 triA[] = { vertexData[TriangleAIndices[0]] , vertexData[TriangleAIndices[1]] , vertexData[TriangleAIndices[2]] };
-						DirectX::XMFLOAT3 triB[] = { vertexData[TriangleBIndices[0]] , vertexData[TriangleBIndices[1]] , vertexData[TriangleBIndices[2]] };
+						float edgeWeight = 0.0f;
 
-						switch (mode){
+						DirectX::XMFLOAT3 triA[] = { vertexData[TriangleAIndices[0]] , vertexData[TriangleAIndices[1]] , vertexData[TriangleAIndices[2]] };
+						DirectX::XMFLOAT3 triB[] = { vertexData[TriangleBIndices[0]], vertexData[TriangleBIndices[1]], vertexData[TriangleBIndices[2]] };
+
+						switch (mode) {
 						case SOD:
-							
-							edgeWeight = CalculateSODWeight(triA,triB);
+							edgeWeight = CalculateSODWeight(triA, triB);
+							edgeWeight = CalculateSODWeight(triA, triB);
 							break;
 						case ESOD:
-							edgeWeight = CalculateESODWeight(vertexNormalsData[neighbourIndices[0]], vertexNormalsData[neighbourIndices[1]]);
+							edgeWeight = CalculateESODWeight(DirectX::XMFLOAT3(vertexNormalsData[neighbourIndices[0]]), DirectX::XMFLOAT3());
 							break;
 						default:
 							OutputDebugStringA("\nNO MODE SELECTED!\n");
@@ -355,18 +354,20 @@ void HolographicSpatialMapping::HolographicSpatialMappingMain::PopulateEdgeList(
 							vertexPositions.push_back(vertexData[edgeIndices[1]]);
 							edgeCounter++;
 						}
-						
+
 						break;
 					}
 				}
 				if (edgeIndices.size() > 1)
 					break;
 			}
+
 		}
+
 	}
 	//meshMutex.lock();
 	const auto vertexPtr = &vertexPositions;
-	edgeRenderer->UpdateEdgeBuffers(vertexPtr, modelCoord, base);
+	edgeRenderer->CreateBuffer(vertexPtr, modelCoord);
 	//meshMutex.unlock();
 
 	char buffr[255];
@@ -389,7 +390,7 @@ DirectX::XMVECTOR normal(DirectX::XMVECTOR triangleP1, DirectX::XMVECTOR triangl
 	return out;
 }
 
-float HolographicSpatialMapping::HolographicSpatialMappingMain::CalculateSODWeight(DirectX::XMFLOAT3 triangleA[3], DirectX::XMFLOAT3 triangleB[3]){
+float HolographicSpatialMapping::HolographicSpatialMappingMain::CalculateSODWeight(DirectX::XMFLOAT3 triangleA[3], DirectX::XMFLOAT3 triangleB[3]) {
 	DirectX::XMVECTOR A1 = { triangleA[0].x,triangleA[0].y,triangleA[0].z };
 	DirectX::XMVECTOR A2 = { triangleA[1].x,triangleA[1].y,triangleA[1].z };
 	DirectX::XMVECTOR A3 = { triangleA[2].x,triangleA[2].y,triangleA[2].z };
@@ -546,9 +547,6 @@ HolographicFrame^ HolographicSpatialMappingMain::Update()
 	if (needSpatialMapping && m_surfaceObserver) {
 		auto options = ref new SpatialSurfaceMeshOptions();
 		options->IncludeVertexNormals = true;
-		options->VertexPositionFormat = Windows::Graphics::DirectX::DirectXPixelFormat::R32G32B32A32Float;
-		options->VertexNormalFormat = Windows::Graphics::DirectX::DirectXPixelFormat::R32G32B32A32Float;
-		options->TriangleIndexFormat = Windows::Graphics::DirectX::DirectXPixelFormat::R32UInt;
 
 		auto surfaceMap = m_surfaceObserver->GetObservedSurfaces();
 
@@ -568,9 +566,9 @@ HolographicFrame^ HolographicSpatialMappingMain::Update()
 					sprintf_s(msgbuf, 100, "Surface ID: %u:\n", mesh->SurfaceInfo->Id);
 					OutputDebugStringA(msgbuf);
 
-					auto operation = create_async([this,mesh,currentCoordinateSystem]
+					auto operation = create_async([this, mesh, currentCoordinateSystem]
 					{
-						PopulateEdgeList(mesh,currentCoordinateSystem);
+						PopulateEdgeList(mesh, currentCoordinateSystem);
 					});
 					auto populateTask = create_task(operation);
 				}

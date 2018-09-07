@@ -10,32 +10,18 @@ public:
 		Microsoft::WRL::ComPtr<ID3D11Buffer> modelConstantBuffer;
 		Windows::Perception::Spatial::SpatialCoordinateSystem^ coord;
 		UINT numVertices;
-		Windows::Foundation::Numerics::float3 vertexScale;
 	};
 
 	EdgeRenderer::EdgeRenderer(const std::shared_ptr<DX::DeviceResources>& deviceResources);
-
 	void EdgeRenderer::Render(bool isStereo);
-
 	void EdgeRenderer::Update(Windows::Perception::Spatial::SpatialCoordinateSystem^ coordinateSystem);
-
-	void EdgeRenderer::CreateBuffers(std::vector<DirectX::XMFLOAT3>* vertices, Windows::Perception::Spatial::SpatialCoordinateSystem^ meshCoord, Windows::Perception::Spatial::SpatialCoordinateSystem^ base);
-	void EdgeRenderer::UpdateEdgeBuffers(std::vector<DirectX::XMFLOAT3>* vertices, Windows::Perception::Spatial::SpatialCoordinateSystem ^ model, Windows::Perception::Spatial::SpatialCoordinateSystem ^ base);
-
+	void EdgeRenderer::CreateBuffer(std::vector<DirectX::XMFLOAT3>* vertices, Windows::Perception::Spatial::SpatialCoordinateSystem^ modelCoord);
 	void EdgeRenderer::CreateDeviceDependentResources();
 	void EdgeRenderer::ReleaseDeviceDependentResources();
 
-	struct ModelConstantStruct {
-		Windows::Foundation::Numerics::float4x4 model;
-	};
-
 private:
 	//**
-	Microsoft::WRL::ComPtr<ID3D11Buffer> edgeVertexBuffer;
-	Microsoft::WRL::ComPtr<ID3D11Buffer> modelTransformBuffer;
-	std::vector<DirectX::XMFLOAT3>* edgeVertices;
 
-	UINT vertexCount = 0;
 	UINT vertexStride;
 	UINT vertexOffset = 0;
 	
@@ -44,7 +30,7 @@ private:
 	//**
 
 
-	std::vector<EdgeVertexCollection> edgeBuffers;
+	std::vector<EdgeVertexCollection>* edgeBuffers;
 	
 
 	Windows::Perception::Spatial::SpatialCoordinateSystem^ baseCoordinateSystem;
