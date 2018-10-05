@@ -27,6 +27,7 @@
 
 //---
 #include "EdgeRenderer.h"
+#include "Kdtree.h"
 //---
 
 // Updates, renders, and presents holographic content using Direct3D.
@@ -62,41 +63,12 @@ namespace HolographicSpatialMapping
 		//---
 		enum EdgeOperator { SOD, ESOD };
 
-		/*
-		struct Edge
-		{
-			//Edge weight
-			float weight = -1.0;
-
-			//Edge indices
-			std::vector<unsigned short> triangleIndices;
-			std::pair<unsigned short, unsigned short> edgeIndices;
-			std::pair<DirectX::XMFLOAT3, DirectX::XMFLOAT3> edgeVertices;
-			std::pair<DirectX::XMFLOAT3, DirectX::XMFLOAT3> outlyingVertices;
-			std::pair<unsigned short, unsigned short> outlyingIndices;
-
-			//Vertex position and normal data
-			std::pair<DirectX::XMFLOAT3, DirectX::XMFLOAT3> outlyingVertexNormals;
-			std::vector<DirectX::XMFLOAT3> triangleVertices;
-
-			Edge(
-				std::vector<unsigned short> TriangleIndices,
-				std::pair<DirectX::XMFLOAT3, DirectX::XMFLOAT3> EdgeVertices,
-				std::pair<DirectX::XMFLOAT3,DirectX::XMFLOAT3> neighbourVertexNormals
-			){
-				triangleIndices = TriangleIndices;
-				outlyingVertexNormals = neighbourVertexNormals;
-				edgeVertices = EdgeVertices;
-			}
-			
-		};
-		*/
-
 		//Helper function for populating edge-list needed for edge-weight calculations
 		void HolographicSpatialMapping::HolographicSpatialMappingMain::PopulateEdgeList(
 			Windows::Perception::Spatial::Surfaces::SpatialSurfaceMesh^ mesh
-			,Windows::Perception::Spatial::SpatialCoordinateSystem^ base
 		);
+
+		void HolographicSpatialMapping::HolographicSpatialMappingMain::newSurfaces(Windows::Perception::Spatial::Surfaces::SpatialSurfaceObserver^ sender, Platform::Object^ args);
 		//---
 
     private:
@@ -168,14 +140,16 @@ namespace HolographicSpatialMapping
 		//
 		//"SOD": Second Order Difference
 		//"ESOD": Extended Second Order Difference
-		EdgeOperator mode = SOD;
+		EdgeOperator mode = ESOD;
 
 		double meshDensity = 1000.0;
-		float weightThreshold = 0.9f;
+		float weightThreshold = 0.55f;
 
 		//Weight calculation methods
 		float HolographicSpatialMapping::HolographicSpatialMappingMain::CalculateSODWeight(DirectX::XMFLOAT3 triangleA[3], DirectX::XMFLOAT3 triangleB[3]);
 		float HolographicSpatialMapping::HolographicSpatialMappingMain::CalculateESODWeight(DirectX::XMFLOAT3 vertexANormal, DirectX::XMFLOAT3 vertexBNormal);
+
+		float HolographicSpatialMapping::HolographicSpatialMappingMain::CalculateSODWeight(Triangle triangleA, Triangle triangleB);
 
 		//std::map<GUID,std::vector<DirectX::XMFLOAT3>>* vertexMap = nullptr;
 		//std::map<GUID,std::vector<DirectX::XMFLOAT3>>* normalsMap = nullptr;
@@ -185,10 +159,13 @@ namespace HolographicSpatialMapping
 
 		std::unique_ptr<EdgeRenderer> edgeRenderer;
 
+		Windows::Foundation::EventRegistrationToken surfaceUpdateToken;
+		std::vector<Platform::Guid> surfaceIDs;
+		Windows::Perception::Spatial::Surfaces::SpatialSurfaceMeshOptions^ options;
+
 		bool needsExtraction = true;
 		bool needSpatialMapping = true;
 		bool featuresExtracted = false;
-
 		//---
     };
 }

@@ -62,6 +62,7 @@ void HolographicSpatialMappingMain::SetHolographicSpace(
 	//---
 	//Initialize the edge renderer
 	edgeRenderer = std::make_unique<EdgeRenderer>(m_deviceResources);
+
 	//---
 
 	// Use the default SpatialLocator to track the motion of the device.
@@ -144,6 +145,9 @@ void HolographicSpatialMappingMain::UnregisterHolographicEventHandlers()
 	if (m_surfaceObserver != nullptr)
 	{
 		m_surfaceObserver->ObservedSurfacesChanged -= m_surfacesChangedToken;
+		//---
+		m_surfaceObserver->ObservedSurfacesChanged -= surfaceUpdateToken;
+		//---
 	}
 }
 
@@ -199,17 +203,79 @@ void HolographicSpatialMappingMain::OnSurfacesChanged(
 }
 
 //---
+void HolographicSpatialMappingMain::newSurfaces(SpatialSurfaceObserver^ sender, Object^ args) {
+
+	IMapView<Guid, SpatialSurfaceInfo^>^ const& surfaceMap = sender->GetObservedSurfaces();
+
+	for (const auto& pair : surfaceMap) {
+		auto id = pair->Key;
+		auto surfaceInfo = pair->Value;
+
+		auto it = std::find(surfaceIDs.begin(), surfaceIDs.end(), surfaceInfo->Id);
+		if (it != surfaceIDs.end()) {
+			//Found it in collection, do nothing
+		}
+		else {
+			//New surface, add to collection
+			surfaceIDs.push_back(surfaceInfo->Id);
+			auto createMeshTask = create_task(surfaceInfo->TryComputeLatestMeshAsync(meshDensity, options));
+
+			createMeshTask.then([this, id](SpatialSurfaceMesh^ mesh)
+			{
+				if (mesh != nullptr)
+				{
+					auto operation = create_async([this, mesh]
+					{
+						PopulateEdgeList(mesh);
+					});
+					auto populateTask = create_task(operation);
+				}
+			}, task_continuation_context::use_current());
+		}
+	}
+	return;
+}
+
+bool operator== (const DirectX::XMFLOAT3 A, const DirectX::XMFLOAT3 B) {
+	if (A.x == B.x &&
+		A.y == B.y &&
+		A.z == B.z)
+	{
+		return true;
+	}
+	return false;
+}
+bool operator!= (const DirectX::XMFLOAT3 A, const DirectX::XMFLOAT3 B) {
+	if (A.x != B.x ||
+		A.y != B.y ||
+		A.z != B.z)
+	{
+		return true;
+	}
+	return false;
+}
+bool operator!= (const Triangle A, const Triangle B) {
+	for (unsigned int i = 0; i < 3; i++) {
+		if (A.triangleVertices[i] != B.triangleVertices[i]) {
+			return true;
+		}
+	}
+	return false;
+}
+
 void HolographicSpatialMapping::HolographicSpatialMappingMain::PopulateEdgeList(
 	Windows::Perception::Spatial::Surfaces::SpatialSurfaceMesh^ mesh
-	, Windows::Perception::Spatial::SpatialCoordinateSystem^ base
 ) {
-	//std::vector<DirectX::XMUINT3> indexData;
+	clock_t timer;
+	timer = clock();
+
 	std::vector<UINT> indexData;
 	std::vector<DirectX::XMFLOAT3> vertexData;
 	std::vector<DirectX::XMFLOAT3> vertexNormalsData;
 
+	std::vector<Triangle> meshTriangles;
+
 	DirectX::PackedVector::XMSHORTN4* rawVertexData = (DirectX::PackedVector::XMSHORTN4*)GetDataFromIBuffer(mesh->VertexPositions->Data);
-	//BYTE* rawVertexData = GetDataFromIBuffer(mesh->VertexPositions->Data);
 	auto vertexScale = mesh->VertexPositionScale;
 	unsigned int InputVertexCount = mesh->VertexPositions->ElementCount;
 
@@ -229,9 +295,6 @@ void HolographicSpatialMapping::HolographicSpatialMappingMain::PopulateEdgeList(
 		DirectX::XMFLOAT4 scaledVector = DirectX::XMFLOAT4(xmfloat.x*vertexScale.x, xmfloat.y*vertexScale.y, xmfloat.z*vertexScale.z, xmfloat.w);
 
 		vertexData.push_back(DirectX::XMFLOAT3(scaledVector.x, scaledVector.y, scaledVector.z));
-		//vertexData.push_back(scaledVector.x);
-		//vertexData.push_back(scaledVector.y);
-		//vertexData.push_back(scaledVector.z);
 	}
 
 	DirectX::PackedVector::XMBYTEN4* rawNormalData = (DirectX::PackedVector::XMBYTEN4*)GetDataFromIBuffer(mesh->VertexNormals->Data);
@@ -253,14 +316,9 @@ void HolographicSpatialMapping::HolographicSpatialMappingMain::PopulateEdgeList(
 		DirectX::XMFLOAT4 scaledVector = DirectX::XMFLOAT4(xmfloat.x, xmfloat.y, xmfloat.z, xmfloat.w);
 
 		vertexNormalsData.push_back(DirectX::XMFLOAT3(scaledVector.x, scaledVector.y, scaledVector.z));
-		//vertexNormalsData.push_back(scaledVector.x);
-		//vertexNormalsData.push_back(scaledVector.y);
-		//vertexNormalsData.push_back(scaledVector.z);
 	}
 
 	DirectX::PackedVector::XMUSHORT4* rawIndexData = (DirectX::PackedVector::XMUSHORT4*)GetDataFromIBuffer(mesh->TriangleIndices->Data);
-	//BYTE* rawIndexData = GetDataFromIBuffer(mesh->TriangleIndices->Data);
-	//unsigned int InputIndexCount = mesh->TriangleIndices->ElementCount / 4;
 	unsigned int InputIndexCount = mesh->TriangleIndices->ElementCount / 4;
 	for (unsigned int index = 0; index < InputIndexCount; index++)
 	{
@@ -285,29 +343,89 @@ void HolographicSpatialMapping::HolographicSpatialMappingMain::PopulateEdgeList(
 		indexData.push_back(xmfloat.w);
 	}
 
-	/*
-	char msgbuffer[512];
-	unsigned int val = (unsigned int)indexData.size();
-	sprintf_s(msgbuffer, 512, "\nNumber of indices: %u \nNumber of vertices: %u\nNumber of normals: %u\n", val, InputVertexCount, InputNormalsCount);
-	OutputDebugStringA(msgbuffer);
-	*/
+	//Construct triangles
+	for (std::vector<UINT>::iterator it = indexData.begin(); it != indexData.end() && it + 1 != indexData.end() && it + 2 != indexData.end(); it += 3) {
+		meshTriangles.push_back(Triangle(vertexData[*it], vertexData[*(it + 1)], vertexData[*(it + 2)],
+			vertexNormalsData[*it], vertexNormalsData[*(it + 1)], vertexNormalsData[*(it + 2)]));
+	}
+
+	Kdtree tree = Kdtree();
+	Kdtree::Node* rootNode = tree.Create(meshTriangles, 0, 200);
+	for (Triangle triangle : meshTriangles) {
+		tree.Insert(triangle, rootNode);
+	}
+
+	std::vector<DirectX::XMFLOAT3> edgeVertices;
+	std::vector<DirectX::XMFLOAT3> neighbourNormals;
+	std::vector<Triangle> localTriangles;
 
 	//Populate edgelist
-	int edgeCounter = 0;
 	std::vector<DirectX::XMFLOAT3> vertexPositions;
 	Windows::Perception::Spatial::SpatialCoordinateSystem^ modelCoord = mesh->CoordinateSystem;
+	
+	for (Triangle triangleA : meshTriangles) {
+		//localTriangles = tree.SearchPos(triangleA.position, rootNode)->triangles;
+		localTriangles = tree.SearchTri(triangleA, rootNode);
+		for (Triangle triangleB : localTriangles) {
+			if (triangleA != triangleB) {
+				edgeVertices.clear();
+				neighbourNormals.clear();
 
+				for (int i = 0; i < 3; i++) {
+					DirectX::XMFLOAT3 A = triangleA.triangleVertices[i];
+					for (int j = 0; j < 3; j++) {
+						if (A == triangleB.triangleVertices[j]) {
+							edgeVertices.push_back(A);
+						}
+					}
+				}
+
+				if (edgeVertices.size() > 1) {
+					//The triangles have a shared edge, calculate the edge weight
+					
+					for (int i = 0; i < 3; i++) {
+						if (triangleA.triangleVertices[i] != edgeVertices[0] || triangleA.triangleVertices[i] != edgeVertices[1])
+							neighbourNormals.push_back(triangleA.triangleNormals[i]);
+						if (triangleB.triangleVertices[i] != edgeVertices[0] || triangleB.triangleVertices[i] != edgeVertices[1])
+							neighbourNormals.push_back(triangleB.triangleNormals[i]);
+					}
+
+					float edgeWeight = 0.0f;
+
+					switch (mode) {
+					case SOD:
+						edgeWeight = CalculateSODWeight(triangleA, triangleB);
+						break;
+					case ESOD:
+						edgeWeight = CalculateESODWeight(neighbourNormals[0], neighbourNormals[1]);
+						break;
+					default:
+						OutputDebugStringA("\nNO MODE SELECTED!\n");
+					}
+					if (edgeWeight > weightThreshold) {
+						vertexPositions.push_back(edgeVertices[0]);
+						vertexPositions.push_back(edgeVertices[1]);
+					}
+
+					//break;
+				}
+
+			}
+		}
+	}
+	
+	/*
 	for (auto it1 = indexData.begin(); it1 != indexData.end(); it1 += 3) {
 		//There is no guarantee that 'index/vertex/normal count' % 3 = 0.
 		if (it1 + 1 == indexData.end() || it1 + 2 == indexData.end()) {
-			return;
+			break;
 		}
 		unsigned int TriangleAIndices[3] = { *it1,*(it1 + 1),*(it1 + 2) };
 
-		for (auto it2 = it1 + 3; it2 != indexData.end(); it2+=3) {
+		for (auto it2 = it1 + 3; it2 != indexData.end(); it2 += 3) {
 			//There is no guarantee that 'index/vertex/normal count' % 3 = 0.
 			if (it2 + 1 == indexData.end() || it2 + 2 == indexData.end()) {
-				return;
+				break;
 			}
 			unsigned int TriangleBIndices[3] = { *it2,*(it2 + 1),*(it2 + 2) };
 
@@ -342,16 +460,14 @@ void HolographicSpatialMapping::HolographicSpatialMappingMain::PopulateEdgeList(
 							edgeWeight = CalculateSODWeight(triA, triB);
 							break;
 						case ESOD:
-							edgeWeight = CalculateESODWeight(DirectX::XMFLOAT3(vertexNormalsData[neighbourIndices[0]]), DirectX::XMFLOAT3());
+							edgeWeight = CalculateESODWeight(DirectX::XMFLOAT3(vertexNormalsData[neighbourIndices[0]]), DirectX::XMFLOAT3(vertexNormalsData[neighbourIndices[1]]));
 							break;
 						default:
 							OutputDebugStringA("\nNO MODE SELECTED!\n");
 						}
-
-						if (true/*edgeWeight > weightThreshold*/) {
+						if (edgeWeight > weightThreshold) {
 							vertexPositions.push_back(vertexData[edgeIndices[0]]);
 							vertexPositions.push_back(vertexData[edgeIndices[1]]);
-							edgeCounter++;
 						}
 
 						break;
@@ -364,10 +480,19 @@ void HolographicSpatialMapping::HolographicSpatialMappingMain::PopulateEdgeList(
 		}
 
 	}
-	//meshMutex.lock();
-	const auto vertexPtr = &vertexPositions;
-	edgeRenderer->CreateBuffer(vertexPtr, modelCoord);
-	//meshMutex.unlock();
+	*/
+	
+	//At least 2 vertices are required to draw a line
+	if (vertexPositions.size() > 1) {
+		std::vector<DirectX::XMFLOAT3>* vertexPtr = &vertexPositions;
+		edgeRenderer->CreateBuffer(vertexPtr, modelCoord);
+
+		//Time measurement
+		char buffer[255];
+		timer = clock() - timer;
+		sprintf_s(buffer, 255, "Sent to render, took %f seconds.\n", (float)timer / CLOCKS_PER_SEC);
+		OutputDebugStringA(buffer);
+	}
 	return;
 }
 
@@ -397,7 +522,7 @@ float HolographicSpatialMapping::HolographicSpatialMappingMain::CalculateSODWeig
 	DirectX::XMVECTOR triangleANormal = normal(A1, A2, A3);
 	DirectX::XMVECTOR triangleBNormal = normal(B1, B2, B3);
 
-	return DirectX::XMScalarACos(DirectX::XMVectorGetX(DirectX::XMVector3Dot(DirectX::XMVector3Normalize(triangleANormal), DirectX::XMVector3Normalize(triangleBNormal))));;
+	return DirectX::XMScalarACos(DirectX::XMVectorGetX(DirectX::XMVector3Dot(DirectX::XMVector3Normalize(triangleANormal), DirectX::XMVector3Normalize(triangleBNormal))));
 }
 
 float HolographicSpatialMapping::HolographicSpatialMappingMain::CalculateESODWeight(DirectX::XMFLOAT3 vertexANormal, DirectX::XMFLOAT3 vertexBNormal) {
@@ -405,6 +530,21 @@ float HolographicSpatialMapping::HolographicSpatialMappingMain::CalculateESODWei
 	DirectX::XMVECTOR vertexBnormal = DirectX::XMLoadFloat3(&vertexBNormal);
 
 	return DirectX::XMScalarACos(DirectX::XMVectorGetX(DirectX::XMVector3Dot(DirectX::XMVector3Normalize(vertexAnormal), DirectX::XMVector3Normalize(vertexBnormal))));
+}
+
+float HolographicSpatialMapping::HolographicSpatialMappingMain::CalculateSODWeight(Triangle triangleA, Triangle triangleB) {
+	DirectX::XMVECTOR A1 = { triangleA.triangleVertices[0].x,triangleA.triangleVertices[0].y,triangleA.triangleVertices[0].z };
+	DirectX::XMVECTOR A2 = { triangleA.triangleVertices[1].x,triangleA.triangleVertices[1].y,triangleA.triangleVertices[1].z };
+	DirectX::XMVECTOR A3 = { triangleA.triangleVertices[2].x,triangleA.triangleVertices[2].y,triangleA.triangleVertices[2].z };
+
+	DirectX::XMVECTOR B1 = { triangleB.triangleVertices[0].x,triangleB.triangleVertices[0].y,triangleB.triangleVertices[0].z };
+	DirectX::XMVECTOR B2 = { triangleB.triangleVertices[1].x,triangleB.triangleVertices[1].y,triangleB.triangleVertices[1].z };
+	DirectX::XMVECTOR B3 = { triangleB.triangleVertices[2].x,triangleB.triangleVertices[2].y,triangleB.triangleVertices[2].z };
+
+	DirectX::XMVECTOR triangleANormal = normal(A1, A2, A3);
+	DirectX::XMVECTOR triangleBNormal = normal(B1, B2, B3);
+
+	return DirectX::XMScalarACos(DirectX::XMVectorGetX(DirectX::XMVector3Dot(DirectX::XMVector3Normalize(triangleANormal), DirectX::XMVector3Normalize(triangleBNormal))));
 }
 //---
 
@@ -540,7 +680,7 @@ HolographicFrame^ HolographicSpatialMappingMain::Update()
 
 	//Pull vertex data
 	if (needSpatialMapping && m_surfaceObserver) {
-		auto options = ref new SpatialSurfaceMeshOptions();
+		options = ref new SpatialSurfaceMeshOptions();
 		options->IncludeVertexNormals = true;
 
 		auto surfaceMap = m_surfaceObserver->GetObservedSurfaces();
@@ -551,20 +691,28 @@ HolographicFrame^ HolographicSpatialMappingMain::Update()
 			auto const& id = pair->Key;
 			auto const& surfaceInfo = pair->Value;
 
+			surfaceIDs.push_back(surfaceInfo->Id);
+
 			auto createMeshTask = create_task(surfaceInfo->TryComputeLatestMeshAsync(meshDensity, options));
 
 			createMeshTask.then([this, id, currentCoordinateSystem](SpatialSurfaceMesh^ mesh)
 			{
 				if (mesh != nullptr)
 				{
-					auto operation = create_async([this, mesh, currentCoordinateSystem]
+					auto operation = create_async([this, mesh]
 					{
-						PopulateEdgeList(mesh, currentCoordinateSystem);
+						PopulateEdgeList(mesh);
 					});
 					auto populateTask = create_task(operation);
 				}
 			}, task_continuation_context::use_current());
 		}
+
+		//Register for updates
+		surfaceUpdateToken = m_surfaceObserver->ObservedSurfacesChanged +=
+			ref new TypedEventHandler<SpatialSurfaceObserver^, Platform::Object^>(
+				bind(&HolographicSpatialMappingMain::newSurfaces, this, _1, _2)
+				);
 
 		needSpatialMapping = false;
 	}

@@ -11,19 +11,21 @@ EdgeRenderer::EdgeRenderer(const std::shared_ptr<DX::DeviceResources>& deviceRes
 
 void EdgeRenderer::Update(Windows::Perception::Spatial::SpatialCoordinateSystem ^ base)
 {
-	if (!loadingComplete) {
+	vertexMutex.lock();
+	if (!loadingComplete || !buffersReady) {
+		vertexMutex.unlock();
 		return;
 	}
-	
+	vertexMutex.unlock();
+
 	auto context = deviceResources->GetD3DDeviceContext();
 
-	vertexMutex.lock();
+	
 	for (auto it = edgeBuffers->begin(); it != edgeBuffers->end(); it++) {
 		Windows::Foundation::Numerics::float4x4 model;
 		DirectX::XMStoreFloat4x4(&model,
 			DirectX::XMMatrixTranspose(DirectX::XMLoadFloat4x4(&it->coord->TryGetTransformTo(base)->Value)));
 		
-
 		context->UpdateSubresource(
 			it->modelConstantBuffer.Get(),
 			0,
@@ -33,16 +35,14 @@ void EdgeRenderer::Update(Windows::Perception::Spatial::SpatialCoordinateSystem 
 			0
 		);
 	}
-	vertexMutex.unlock();
 }
 
 void EdgeRenderer::CreateBuffer(std::vector<DirectX::XMFLOAT3>* vertices, Windows::Perception::Spatial::SpatialCoordinateSystem^ modelCoord) {
 	vertexMutex.lock();
 	buffersReady = false;
-	vertexMutex.unlock();
 	auto device = deviceResources->GetD3DDevice();
 
-	EdgeVertexCollection newCollection;
+	EdgeVertexCollection newCollection = EdgeVertexCollection();
 	newCollection.coord = modelCoord;
 	newCollection.numVertices = vertices->size();
 
@@ -83,18 +83,12 @@ void EdgeRenderer::CreateBuffer(std::vector<DirectX::XMFLOAT3>* vertices, Window
 	edgeBuffers->push_back(newCollection);
 
 	buffersReady = true;
+	vertexMutex.unlock();
 }
 
 void EdgeRenderer::Render(bool isStereo)
 {
-	if (!loadingComplete) {
-		return;
-	}
-	//Lock to avoid data race with 'UpdateEdgeBuffers'
-	vertexMutex.lock();
-	if (!buffersReady) {
-		//If the buffers are not ready yet, release the lock and return
-		vertexMutex.unlock();
+	if (!loadingComplete || !buffersReady) {
 		return;
 	}
 
@@ -111,6 +105,7 @@ void EdgeRenderer::Render(bool isStereo)
 		context->GSSetShader(geometryShader.Get(), nullptr, 0);
 	context->RSSetState(rasterizerState.Get());
 	
+	vertexMutex.lock();
 	for (auto it = edgeBuffers->begin(); it != edgeBuffers->end(); it++) {
 		context->IASetVertexBuffers(
 			0,

@@ -46,6 +46,7 @@
       <Filter>Content</Filter>
     </ClCompile>
     <ClCompile Include="EdgeRenderer.cpp" />
+    <ClCompile Include="Kdtree.cpp" />
   </ItemGroup>
   <ItemGroup>
     <ClInclude Include="pch.h" />
@@ -67,6 +68,8 @@
       <Filter>Content</Filter>
     </ClInclude>
     <ClInclude Include="EdgeRenderer.h" />
+    <ClInclude Include="Kdtree.h" />
+    <ClInclude Include="Triangle.h" />
   </ItemGroup>
   <ItemGroup>
     <FxCompile Include="Content\SurfaceVertexShader.hlsl">
