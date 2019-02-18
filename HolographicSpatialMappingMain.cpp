@@ -62,7 +62,11 @@ void HolographicSpatialMappingMain::SetHolographicSpace(
 	//---
 	//Initialize the edge renderer
 	edgeRenderer = std::make_unique<EdgeRenderer>(m_deviceResources);
-
+#ifdef MATLAB_DATA
+	Platform::String^ localfolder = Windows::Storage::ApplicationData::Current->LocalFolder->Path;
+	std::wstring folderNameW(localfolder->Begin());
+	folderPath = std::string(folderNameW.begin(), folderNameW.end());
+#endif
 	//---
 
 	// Use the default SpatialLocator to track the motion of the device.
@@ -204,7 +208,6 @@ void HolographicSpatialMappingMain::OnSurfacesChanged(
 
 //---
 void HolographicSpatialMappingMain::newSurfaces(SpatialSurfaceObserver^ sender, Object^ args) {
-
 	IMapView<Guid, SpatialSurfaceInfo^>^ const& surfaceMap = sender->GetObservedSurfaces();
 
 	for (const auto& pair : surfaceMap) {
@@ -350,7 +353,7 @@ void HolographicSpatialMapping::HolographicSpatialMappingMain::PopulateEdgeList(
 	}
 
 	Kdtree tree = Kdtree();
-	Kdtree::Node* rootNode = tree.Create(meshTriangles, 0, 200);
+	Kdtree::Node* rootNode = tree.Create(meshTriangles, 0, 100);
 	for (Triangle triangle : meshTriangles) {
 		tree.Insert(triangle, rootNode);
 	}
@@ -406,10 +409,7 @@ void HolographicSpatialMapping::HolographicSpatialMappingMain::PopulateEdgeList(
 						vertexPositions.push_back(edgeVertices[0]);
 						vertexPositions.push_back(edgeVertices[1]);
 					}
-
-					//break;
 				}
-
 			}
 		}
 	}
@@ -486,6 +486,82 @@ void HolographicSpatialMapping::HolographicSpatialMappingMain::PopulateEdgeList(
 	if (vertexPositions.size() > 1) {
 		std::vector<DirectX::XMFLOAT3>* vertexPtr = &vertexPositions;
 		edgeRenderer->CreateBuffer(vertexPtr, modelCoord);
+
+#ifdef MATLAB_DATA
+		matLock.lock();
+		char fileName[1024];
+		sprintf_s(fileName,1024,"%s\\EdgeVertices%d.txt",folderPath.c_str(),surfcount);
+		//sprintf_s(fileName, 1024, "%s\\VertexData%d.txt", folderPath.c_str(),surfcount);
+		
+
+		//std::ofstream stream(fileName, std::ofstream::app);
+		std::ofstream stream(fileName,std::ofstream::app);
+		Windows::Perception::Spatial::SpatialLocator ^ loc = Windows::Perception::Spatial::SpatialLocator::GetDefault();
+		auto locReference = loc->CreateStationaryFrameOfReferenceAtCurrentLocation(Windows::Foundation::Numerics::float3(0, 0, 0), Windows::Foundation::Numerics::quaternion::identity());
+		DirectX::XMMATRIX mvp = DirectX::XMLoadFloat4x4(&mesh->CoordinateSystem->TryGetTransformTo(locReference->CoordinateSystem)->Value);
+		DirectX::XMMATRIX normalTransform = mvp;
+		normalTransform.r[3] = XMVectorSet(0.f, 0.f, 0.f, XMVectorGetW(normalTransform.r[3]));
+		normalTransform = XMMatrixTranspose(normalTransform);
+		
+		if (stream) {
+
+			for (DirectX::XMFLOAT3 v : vertexPositions) {
+			//for (DirectX::XMFLOAT3 v : vertexData) {
+				DirectX::XMFLOAT3 v_t;
+				DirectX::XMStoreFloat3(&v_t,DirectX::XMVector3TransformCoord(DirectX::XMLoadFloat3(&v), mvp));
+
+				stream << std::to_string(v_t.x).c_str() << " " << std::to_string(v_t.y).c_str() << " " << std::to_string(v_t.z).c_str() << "\n";
+			}
+		}
+
+		
+		char fileName2[1024];
+		sprintf_s(fileName2, 1024, "%s\\VertexNormalData%d.txt", folderPath.c_str(),surfcount);
+		std::ofstream stream2(fileName2, std::ofstream::app);
+		if (stream2) {
+			for (int i = 0; i < vertexData.size(); i++) {
+				DirectX::XMFLOAT3 v_t;
+				//DirectX::XMFLOAT3 n_t = vertexNormalsData[i];
+				DirectX::XMFLOAT3 n_t;
+				DirectX::XMStoreFloat3(&v_t, DirectX::XMVector3TransformCoord(DirectX::XMLoadFloat3(&vertexData[i]), mvp));
+				DirectX::XMStoreFloat3(&n_t, DirectX::XMVector3TransformCoord(DirectX::XMLoadFloat3(&vertexNormalsData[i]), normalTransform));
+				stream2 << std::to_string(v_t.x).c_str() << " " << std::to_string(v_t.y).c_str() << " " << std::to_string(v_t.z).c_str() << " ";
+				stream2 << std::to_string(n_t.x).c_str() << " " << std::to_string(n_t.y).c_str() << " " << std::to_string(n_t.z).c_str() << "\n";
+			}
+		}
+		
+
+		//PLY FILE INPUT
+		char fileName3[1024];
+		sprintf_s(fileName3, 1024, "%s\\MeshData%d.ply", folderPath.c_str(), surfcount);
+		std::ofstream stream3(fileName3, std::ofstream::app);
+		if (stream3) {
+			//INIT BLOCK
+			stream3 << "ply\nformat ascii 1.0\nelement vertex ";
+			stream3 << vertexData.size() << "\n"; //NUMBER OF VERTS
+			stream3 << "property float32 x\nproperty float32 y\nproperty float32 z\nelement face ";
+			stream3 << indexData.size()/3 << "\n"; //NUMBER OF TRIANGLES
+			stream3 << "property list uint8 int32 vertex_index\nend_header\n";
+			//END OF INIT
+			//ADD VERTICES
+			for (DirectX::XMFLOAT3 v : vertexData) {
+				DirectX::XMFLOAT3 v_t;
+				DirectX::XMStoreFloat3(&v_t, DirectX::XMVector3TransformCoord(DirectX::XMLoadFloat3(&v), mvp));
+				stream3 << std::to_string(v_t.x).c_str() << " " << std::to_string(v_t.y).c_str() << " " << std::to_string(v_t.z).c_str() << "\n";
+			}
+			//ADD INDICES/FACES
+			for (std::vector<UINT>::iterator it = indexData.begin(); it != indexData.end() && it + 1 != indexData.end() && it + 2 != indexData.end(); it += 3) {
+				stream3 << "3 " << *it << " " << *(it + 1) << " " << *(it + 2) << "\n";
+			}
+			stream3.seekp(-2, std::ios_base::cur);
+		}
+
+		surfcount++;
+		stream.close();
+		stream2.close();
+		stream3.close();
+		matLock.unlock();
+#endif
 
 		//Time measurement
 		char buffer[255];
@@ -699,7 +775,7 @@ HolographicFrame^ HolographicSpatialMappingMain::Update()
 			{
 				if (mesh != nullptr)
 				{
-					auto operation = create_async([this, mesh]
+					auto operation = create_async([this, mesh, currentCoordinateSystem]
 					{
 						PopulateEdgeList(mesh);
 					});
@@ -823,6 +899,7 @@ bool HolographicSpatialMappingMain::Render(
 void HolographicSpatialMappingMain::SaveAppState()
 {
 	// This sample does not persist any state between sessions.
+
 }
 
 void HolographicSpatialMappingMain::LoadAppState()
@@ -837,6 +914,7 @@ void HolographicSpatialMappingMain::OnDeviceLost()
 	//---
 	edgeRenderer->ReleaseDeviceDependentResources();
 	//---
+
 #ifdef DRAW_SAMPLE_CONTENT
 	m_meshRenderer->ReleaseDeviceDependentResources();
 #endif

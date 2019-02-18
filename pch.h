@@ -30,4 +30,8 @@
 //---
 #include <DirectXPackedVector.h>
 #include "time.h"
+#include <iostream>
+#include <fstream>
+#include <string>
+#include <iomanip>
 //---

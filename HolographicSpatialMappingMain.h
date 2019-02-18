@@ -28,6 +28,7 @@
 //---
 #include "EdgeRenderer.h"
 #include "Kdtree.h"
+#define MATLAB_DATA
 //---
 
 // Updates, renders, and presents holographic content using Direct3D.
@@ -166,6 +167,15 @@ namespace HolographicSpatialMapping
 		bool needsExtraction = true;
 		bool needSpatialMapping = true;
 		bool featuresExtracted = false;
+
+		//Text output 
+#ifdef MATLAB_DATA
+		std::mutex matLock;
+		bool firstSurf = true;
+		std::ofstream stream;
+		std::string folderPath;
+		int surfcount = 0;
+#endif
 		//---
     };
 }
